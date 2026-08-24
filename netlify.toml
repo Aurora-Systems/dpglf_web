@@ -1,0 +1,34 @@
+# Netlify build config for the DPGLF platform.
+# The repo root IS the Next.js app, so there is no base directory.
+#
+# Only NON-secret config lives here (this file is committed). The real secrets —
+# DATABASE_URL, AUTH_SECRET, RESEND_API_KEY, CLOUDFLARE_*_KEY, CRON_KEY,
+# EMOWORLD_SYNC_SECRET — must be set as environment variables in the Netlify UI.
+
+[build]
+  command = "pnpm build"
+  publish = ".next"
+
+# The Next.js Runtime turns the app into serverless functions so dynamic routes
+# (every dashboard page, the archive, /media/*) actually run. Without it Netlify
+# would serve the raw .next folder as static files.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Whitelist non-secret config from the secrets scanner: these values are
+  # low-entropy and legitimately appear in build output.
+  SECRETS_SCAN_OMIT_KEYS = "ACCESS_TTL,REFRESH_TTL,CLOUDFLARE_ACCOUNT_ID,CLOUDFLARE_BUCKET_NAME,CLOUDFLARE_PUBLIC_URL,EMAIL_FROM,FOUNDATION_INBOX,NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SITE_NAME,EMOWORLD_SYNC_ENABLED,EMOWORLD_API_BASE"
+
+# Manuscripts and other private objects must never be cached by a CDN.
+[[headers]]
+  for = "/api/files/*"
+  [headers.values]
+    Cache-Control = "private, no-store"
+
+[[headers]]
+  for = "/dashboard/*"
+  [headers.values]
+    Cache-Control = "private, no-store"
+    X-Robots-Tag = "noindex, nofollow"
