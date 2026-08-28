@@ -8,6 +8,7 @@ import { abs, templates } from '@/lib/email';
 import { formatDate } from '@/lib/format';
 import { notify } from '@/lib/notify';
 import { hasRole, isStaff } from '@/lib/access';
+import { SITE } from '@/lib/brand';
 import { conflictSchema, reviewSchema } from '@/lib/validation';
 import { bool, fail, invalid, ok, str, type ActionState } from '@/lib/actions';
 
@@ -159,6 +160,36 @@ export async function saveReviewAction(_prev: ActionState, form: FormData): Prom
     entityId: assignment.submission_id,
     metadata: { assignmentId, total, max },
   });
+
+  // Operational notice (implementation plan §10): a finalised score is
+  // something the programme admin acts on, so tell them — once per assignment.
+  if (d.final) {
+    const entry = await queryOne<{ reference: string | null; title: string; competition_name: string }>(
+      `SELECT s.reference, s.title, c.name AS competition_name
+         FROM submissions s JOIN competitions c ON c.id = s.competition_id
+        WHERE s.id = $1`,
+      [assignment.submission_id],
+    );
+    const alert = templates.adminAlert({
+      title: `Review completed: ${entry?.reference ?? assignment.submission_id.slice(0, 8)}`,
+      body: '',
+      lines: [
+        ['Entry', entry ? `${entry.reference ?? '—'} · ${entry.title || 'Untitled'}` : assignment.submission_id],
+        ['Programme', entry?.competition_name ?? '—'],
+        ['Judge', user.name || user.email],
+        ['Score', `${total.toFixed(1)} / ${max.toFixed(0)}`],
+        ['Recommendation', d.recommendation],
+      ],
+      link: abs(`/dashboard/admin/submissions/${assignment.submission_id}`),
+    });
+    await notify({
+      toEmail: SITE.inbox,
+      type: 'review_completed',
+      subject: alert.subject,
+      html: alert.html,
+      dedupeKey: `review_completed:${assignmentId}`,
+    });
+  }
 
   revalidatePath(`/dashboard/judge/${assignmentId}`);
   revalidatePath('/dashboard/judge');

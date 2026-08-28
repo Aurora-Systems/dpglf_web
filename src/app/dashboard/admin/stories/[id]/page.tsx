@@ -10,11 +10,13 @@ import { publicationsForStory } from '@/features/archive/queries';
 import { isEmoworldSyncEnabled } from '@/features/emoworld/sync';
 import {
   ArchiveMetaForm,
+  CoverForm,
   EmoworldControls,
   PublicationForm,
   RightsForm,
   StoryForm,
 } from '@/features/admin/Forms';
+import { publicUrl } from '@/lib/r2';
 
 export default async function AdminStoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -132,6 +134,13 @@ export default async function AdminStoryPage({ params }: { params: Promise<{ id:
                 Open the original entry
               </Link>
             )}
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="font-display text-base font-semibold text-forest-900">Cover image</h2>
+            <div className="mt-3">
+              <CoverForm storyId={id} coverUrl={story.cover_key ? publicUrl(story.cover_key) : null} />
+            </div>
           </Card>
 
           {story.adaptation_ready && (

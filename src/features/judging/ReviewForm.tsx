@@ -48,17 +48,22 @@ export function ReviewForm({
         </Alert>
       ) : (
         <ol className="space-y-6">
-          {criteria.map((c, i) => (
-            <li key={c.id}>
-              <ScoreRow
-                index={i + 1}
-                criterion={c}
-                defaultScore={byId.get(c.id)?.score ?? ''}
-                defaultComment={byId.get(c.id)?.comment ?? ''}
-                disabled={readOnly}
-              />
-            </li>
-          ))}
+          {criteria.map((c, i) => {
+            // Postgres returns numerics as strings like "8.00"; the radio
+            // values are integers, so normalise or nothing re-checks.
+            const saved = byId.get(c.id)?.score;
+            return (
+              <li key={c.id}>
+                <ScoreRow
+                  index={i + 1}
+                  criterion={c}
+                  defaultScore={saved == null ? '' : String(Number(saved))}
+                  defaultComment={byId.get(c.id)?.comment ?? ''}
+                  disabled={readOnly}
+                />
+              </li>
+            );
+          })}
         </ol>
       )}
 

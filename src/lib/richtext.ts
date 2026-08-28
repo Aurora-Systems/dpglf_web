@@ -55,9 +55,22 @@ export function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Strip tags for excerpts, search snippets and meta descriptions. */
+/**
+ * Strip tags for excerpts, search snippets, meta descriptions and the Emoworld
+ * payload. Block boundaries become spaces (otherwise the last word of one
+ * paragraph fuses with the first of the next) and entities are decoded, since
+ * the result is treated as plain text everywhere it is used.
+ */
 export function htmlToText(html: string): string {
-  return sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} })
+  return html
+    .replace(/<(br|\/p|\/h[1-6]|\/li|\/blockquote|\/tr|\/div|\/figcaption)[^>]*>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;|&apos;/gi, "'")
     .replace(/\s+/g, ' ')
     .trim();
 }

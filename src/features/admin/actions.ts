@@ -9,6 +9,8 @@ import { slugify } from '@/lib/format';
 import { isStaff, isSuperAdmin } from '@/lib/access';
 import { sanitizeRichText, textToHtml } from '@/lib/richtext';
 import { pruneRateLimits } from '@/lib/ratelimit';
+import { retryUnsentNotifications } from '@/lib/notify';
+import { IMAGE_MAX_BYTES, IMAGE_TYPES, UploadError, discardFile, storeFile } from '@/lib/files';
 import {
   archiveMetaSchema,
   competitionSchema,
@@ -382,6 +384,59 @@ export async function saveStoryAction(_prev: ActionState, form: FormData): Promi
   });
   revalidatePath(`/dashboard/admin/stories/${storyId}`);
   return ok('Story saved.');
+}
+
+/** Attach or replace a story's cover image. Covers are public marketing assets. */
+export async function uploadCoverAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const guard = await staff();
+  if ('error' in guard) return guard.error;
+
+  const storyId = str(form, 'storyId');
+  const file = form.get('cover');
+  if (!(file instanceof File) || file.size === 0) return fail('Choose an image to upload.');
+  if (!(IMAGE_TYPES as readonly string[]).includes(file.type)) {
+    return fail('Covers must be a JPEG, PNG or WebP image.');
+  }
+  if (file.size > IMAGE_MAX_BYTES) return fail('Covers must be 5 MB or smaller.');
+
+  const story = await queryOne<{ id: string; slug: string; cover_file_id: string | null }>(
+    `SELECT id, slug, cover_file_id FROM stories WHERE id = $1`,
+    [storyId],
+  );
+  if (!story) return fail('That story could not be found.');
+
+  let stored;
+  try {
+    stored = await storeFile({
+      buffer: Buffer.from(await file.arrayBuffer()),
+      originalName: file.name,
+      mimeType: file.type,
+      ownerId: guard.user.userId,
+      purpose: 'cover',
+      visibility: 'public',
+    });
+  } catch (e) {
+    return fail(e instanceof UploadError ? e.message : 'The upload failed. Please try again.');
+  }
+
+  await query(`UPDATE stories SET cover_file_id = $2, updated_at = now() WHERE id = $1`, [
+    storyId,
+    stored.id,
+  ]);
+  // The replaced cover is referenced by nothing else — clear it from R2.
+  if (story.cover_file_id) await discardFile(story.cover_file_id).catch(() => {});
+
+  await audit({
+    actorId: guard.user.userId,
+    action: 'story.cover_updated',
+    entityType: 'story',
+    entityId: storyId,
+    metadata: { file: stored.original_name },
+  });
+  revalidatePath(`/dashboard/admin/stories/${storyId}`);
+  revalidatePath(`/archive/${story.slug}`);
+  revalidatePath('/archive');
+  return ok('Cover updated.');
 }
 
 export async function saveArchiveMetaAction(_prev: ActionState, form: FormData): Promise<ActionState> {
@@ -806,6 +861,65 @@ export async function enqueueStoryAction(_prev: ActionState, form: FormData): Pr
   });
   revalidatePath(`/dashboard/admin/stories/${storyId}`);
   return ok('Queued for the Emoworld review handoff.');
+}
+
+/**
+ * Site settings (super-admin only). One setting is live today —
+ * `site.announcement`, the banner on the marketing homepage — and the generic
+ * editor covers operational keys that arrive later. Every change is audited.
+ */
+export async function saveSettingAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const user = await getSessionUser();
+  if (!user || !isSuperAdmin(user)) return fail('Only a super admin can change settings.');
+
+  const key = str(form, 'key').slice(0, 120);
+  if (!key || !/^[a-z0-9._-]+$/i.test(key)) {
+    return fail('Setting keys use letters, numbers, dots, dashes and underscores.');
+  }
+
+  const raw = str(form, 'value');
+  if (!raw) {
+    await query(`DELETE FROM settings WHERE key = $1`, [key]);
+    await audit({ actorId: user.userId, action: 'setting.deleted', entityType: 'setting', entityId: key });
+    revalidatePath('/dashboard/admin/settings');
+    revalidatePath('/');
+    return ok(`Setting “${key}” removed.`);
+  }
+
+  // Accept either bare text (stored as {"text": ...}) or a JSON document.
+  let value: unknown;
+  try {
+    value = raw.trim().startsWith('{') || raw.trim().startsWith('[') ? JSON.parse(raw) : { text: raw };
+  } catch {
+    return fail('That is not valid JSON. Enter plain text, or a well-formed JSON document.');
+  }
+
+  await query(
+    `INSERT INTO settings (key, value, updated_by, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (key) DO UPDATE
+        SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [key, JSON.stringify(value), user.userId],
+  );
+  await audit({ actorId: user.userId, action: 'setting.saved', entityType: 'setting', entityId: key });
+  revalidatePath('/dashboard/admin/settings');
+  revalidatePath('/');
+  return ok(`Setting “${key}” saved.`);
+}
+
+export async function retryEmailsAction(): Promise<ActionState> {
+  const guard = await staff();
+  if ('error' in guard) return guard.error;
+  const result = await retryUnsentNotifications(50);
+  await audit({
+    actorId: guard.user.userId,
+    action: 'notifications.retried',
+    entityType: 'system',
+    metadata: { ...result },
+  });
+  revalidatePath('/dashboard/admin/audit');
+  if (result.attempted === 0) return ok('Nothing waiting to be retried.');
+  return ok(`${result.sent} sent, ${result.failed} still failing of ${result.attempted} attempted.`);
 }
 
 export async function pruneAction(): Promise<ActionState> {

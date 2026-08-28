@@ -45,6 +45,8 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
     genre: one(sp.genre),
     theme: one(sp.theme),
     year: one(sp.year),
+    edition: one(sp.edition),
+    age: one(sp.age),
     adaptation: one(sp.adaptation),
   };
   const page = Math.max(1, Number(one(sp.page) ?? 1) || 1);
@@ -63,12 +65,15 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeFilters = Object.entries(current).filter(([, v]) => v);
 
-  const facetGroups: [string, string, string[]][] = [
+  // [heading, query param, values, optional display formatter]
+  const facetGroups: [string, string, string[], ((v: string) => string)?][] = [
     ['Country', 'country', facets.countries],
     ['Language', 'language', facets.languages],
     ['Genre', 'genre', facets.genres],
     ['Theme', 'theme', facets.themes],
     ['Year', 'year', facets.years.map(String)],
+    ['Edition', 'edition', facets.editions],
+    ['Age band', 'age', facets.ageBands, (v) => v.replace(/_/g, '–')],
   ];
 
   return (
@@ -135,7 +140,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
           )}
 
           <div className="mt-6 space-y-7">
-            {facetGroups.map(([label, key, values]) =>
+            {facetGroups.map(([label, key, values, fmt]) =>
               values.length === 0 ? null : (
                 <div key={key}>
                   <p className="eyebrow text-muted">{label}</p>
@@ -153,7 +158,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
                                 : 'text-forest-700 hover:bg-forest-900/6',
                             )}
                           >
-                            {value}
+                            {fmt ? fmt(value) : value}
                           </Link>
                         </li>
                       );

@@ -258,9 +258,12 @@ export async function adminStory(id: string) {
         featured: boolean | null;
         adaptation_ready: boolean | null;
         adaptation_notes: string | null;
+        cover_file_id: string | null;
+        cover_key: string | null;
       }>(
         `SELECT s.id, s.slug, s.title, s.synopsis, s.excerpt, s.body_html, s.language, s.genre,
                 s.themes, s.word_count, s.status, s.published_at, s.author_id, u.name AS author_name,
+                s.cover_file_id, fc.storage_key AS cover_key,
                 s.submission_id, sub.reference, c.name AS competition_name,
                 am.country, am.region, am.language AS am_language, am.genre AS am_genre,
                 am.themes AS am_themes, am.keywords, am.age_band, am.cultural_context,
@@ -271,6 +274,7 @@ export async function adminStory(id: string) {
            LEFT JOIN archive_metadata am ON am.story_id = s.id
            LEFT JOIN submissions sub ON sub.id = s.submission_id
            LEFT JOIN competitions c ON c.id = sub.competition_id
+           LEFT JOIN files fc ON fc.id = s.cover_file_id
           WHERE s.id = $1`,
         [id],
       ),
@@ -449,6 +453,61 @@ export async function adminPages() {
         version: number;
         updated_at: string;
       }>(`SELECT id, slug, title, kind, status, version, updated_at FROM pages ORDER BY kind, title`),
+    [],
+  );
+}
+
+export interface AdminFileRow {
+  id: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: string;
+  purpose: string;
+  visibility: string;
+  created_at: string;
+  owner_name: string | null;
+  linked_to: string | null;
+}
+
+/** The file library: every registered R2 object and what it belongs to. */
+export async function adminFiles(purpose?: string): Promise<AdminFileRow[]> {
+  const params: unknown[] = [];
+  let where = '';
+  if (purpose) {
+    params.push(purpose);
+    where = 'WHERE f.purpose = $1';
+  }
+  return safe(
+    () =>
+      query<AdminFileRow>(
+        `SELECT f.id, f.original_name, f.mime_type, f.size_bytes::text, f.purpose, f.visibility,
+                f.created_at, u.name AS owner_name,
+                COALESCE(
+                  (SELECT s.reference || ' · ' || s.title FROM submissions s WHERE s.file_id = f.id LIMIT 1),
+                  (SELECT s2.reference || ' · v' || v.version_number
+                     FROM story_versions v JOIN submissions s2 ON s2.id = v.submission_id
+                    WHERE v.file_id = f.id LIMIT 1),
+                  (SELECT 'Cover · ' || st.title FROM stories st WHERE st.cover_file_id = f.id LIMIT 1)
+                ) AS linked_to
+           FROM files f
+           LEFT JOIN users u ON u.id = f.owner_id
+           ${where}
+          ORDER BY f.created_at DESC
+          LIMIT 300`,
+        params,
+      ),
+    [],
+  );
+}
+
+export async function allSettings() {
+  return safe(
+    () =>
+      query<{ key: string; value: unknown; updated_at: string; updated_by_name: string | null }>(
+        `SELECT s.key, s.value, s.updated_at, u.name AS updated_by_name
+           FROM settings s LEFT JOIN users u ON u.id = s.updated_by
+          ORDER BY s.key`,
+      ),
     [],
   );
 }

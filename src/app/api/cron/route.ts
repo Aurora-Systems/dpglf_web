@@ -1,7 +1,7 @@
 import { query } from '@/lib/db';
 import { abs, templates } from '@/lib/email';
 import { formatDate } from '@/lib/format';
-import { notify } from '@/lib/notify';
+import { notify, retryUnsentNotifications } from '@/lib/notify';
 import { pruneRateLimits } from '@/lib/ratelimit';
 import { drainEmoworldQueue } from '@/features/emoworld/sync';
 
@@ -27,6 +27,12 @@ export async function GET(req: Request) {
     results.deadlineReminders = await sendDeadlineReminders();
   } catch (e) {
     results.deadlineRemindersError = (e as Error).message;
+  }
+
+  try {
+    results.emailRetry = await retryUnsentNotifications();
+  } catch (e) {
+    results.emailRetryError = (e as Error).message;
   }
 
   try {

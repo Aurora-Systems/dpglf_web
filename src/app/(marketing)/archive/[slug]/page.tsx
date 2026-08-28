@@ -6,6 +6,7 @@ import { getSessionUser } from '@/lib/auth';
 import { formatDate, formatNumber, truncate } from '@/lib/format';
 import { canReadFullText } from '@/lib/permissions';
 import { htmlToText } from '@/lib/richtext';
+import { publicUrl } from '@/lib/r2';
 import { archiveStory, publicationsForStory, storiesByAuthor } from '@/features/archive/queries';
 import { InquiryForm } from '@/features/marketing/InquiryForm';
 import { StoryCard } from '@/components/site/StoryCard';
@@ -123,6 +124,14 @@ export default async function StoryPage({ params }: Props) {
         </article>
 
         <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+          {story.cover_key && (
+            // eslint-disable-next-line @next/next/no-img-element -- same-origin /media proxy
+            <img
+              src={publicUrl(story.cover_key)}
+              alt={`Cover art for ${story.title}`}
+              className="w-full rounded-xl border border-line object-cover"
+            />
+          )}
           <Card className="p-6">
             <h2 className="font-display text-lg font-semibold text-forest-900">Record</h2>
             <DescList

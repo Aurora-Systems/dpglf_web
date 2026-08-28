@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { truncate } from '@/lib/format';
+import { publicUrl } from '@/lib/r2';
 import { Badge, cx } from '../ui';
 import type { StoryCard as Story } from '@/features/marketing/queries';
 
@@ -8,10 +9,20 @@ export function StoryCard({ story, className }: { story: Story; className?: stri
   return (
     <article
       className={cx(
-        'group relative flex flex-col rounded-xl border border-line bg-white p-6 transition-colors hover:border-gold-500',
+        'group relative flex flex-col overflow-hidden rounded-xl border border-line bg-white transition-colors hover:border-gold-500',
         className,
       )}
     >
+      {story.cover_key && (
+        // eslint-disable-next-line @next/next/no-img-element -- same-origin /media proxy; the optimiser adds nothing here
+        <img
+          src={publicUrl(story.cover_key)}
+          alt=""
+          loading="lazy"
+          className="aspect-[16/9] w-full object-cover"
+        />
+      )}
+      <div className="flex flex-1 flex-col p-6">
       {meta && <p className="eyebrow text-gold-700">{meta}</p>}
       <h3 className="font-display mt-2.5 text-xl leading-snug font-semibold text-forest-900">
         <Link href={`/archive/${story.slug}`} className="before:absolute before:inset-0">
@@ -29,6 +40,7 @@ export function StoryCard({ story, className }: { story: Story; className?: stri
           <Badge key={t}>{t}</Badge>
         ))}
         {story.visibility === 'public_excerpt' && <Badge tone="gold">Excerpt</Badge>}
+      </div>
       </div>
     </article>
   );

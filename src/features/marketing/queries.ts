@@ -75,6 +75,7 @@ export interface StoryCard {
   author_slug: string | null;
   country: string | null;
   visibility: string;
+  cover_key: string | null;
 }
 
 const STORY_CARD_SELECT = `
@@ -82,11 +83,13 @@ const STORY_CARD_SELECT = `
          COALESCE(NULLIF(p.pen_name, ''), NULLIF(p.display_name, ''), u.name) AS author_name,
          p.slug AS author_slug,
          am.country,
-         am.visibility
+         am.visibility,
+         fc.storage_key AS cover_key
     FROM stories s
     JOIN archive_metadata am ON am.story_id = s.id
     JOIN users u ON u.id = s.author_id
-    LEFT JOIN profiles p ON p.user_id = s.author_id`;
+    LEFT JOIN profiles p ON p.user_id = s.author_id
+    LEFT JOIN files fc ON fc.id = s.cover_file_id`;
 
 export async function featuredStories(limit = 3): Promise<StoryCard[]> {
   return safe(
@@ -302,5 +305,19 @@ export async function policyPages() {
            FROM pages WHERE kind = 'policy' AND status = 'published' ORDER BY title`,
       ),
     [],
+  );
+}
+
+/** The homepage banner text, set from the admin settings console. */
+export async function siteAnnouncement(): Promise<string | null> {
+  return safe(
+    async () => {
+      const row = await queryOne<{ value: { text?: string } }>(
+        `SELECT value FROM settings WHERE key = 'site.announcement'`,
+      );
+      const text = row?.value?.text;
+      return typeof text === 'string' && text.trim() ? text.trim() : null;
+    },
+    null,
   );
 }

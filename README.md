@@ -41,6 +41,14 @@ pnpm db:seed "you@dpglf.org" "a-strong-password"
 pnpm dev
 ```
 
+Run the checks the same way CI would:
+
+```bash
+pnpm test        # unit tests: state machine, access rules, blockers, crypto, sanitiser
+pnpm typecheck
+pnpm lint
+```
+
 `db:seed` creates the super-admin account and the Foundation's launch content: Tales from the
 Baobab (as a draft), a five-criterion judging rubric, the partner organisations named in the
 business plan, and policy page shells.
@@ -107,7 +115,13 @@ Ownership defaults to the author and is edited deliberately.
 
 **Notifications are recorded before dispatch.** Every intended message is a row with a
 `dedupe_key`, so a replayed trigger conflicts instead of emailing a fifteen-year-old twice, and an
-undelivered message is visible in the admin console rather than lost.
+undelivered message is visible in the admin console rather than lost. The rendered body is stored
+with the record, so `/api/cron` (and the admin console's retry button) can re-send anything that
+failed — for example everything queued while the Resend domain was unverified.
+
+**Sessions refresh silently.** Access tokens last 15 minutes; `src/proxy.ts` rotates the single-use
+refresh token on document navigations and server-action submits, so a writer who leaves the
+submission wizard open for an hour does not lose their session — or their form post.
 
 **Policies degrade honestly.** The business plan does not define legal wording. Until the
 Foundation publishes an approved policy, each policy page states exactly what the platform actually

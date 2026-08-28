@@ -21,6 +21,8 @@ export interface ArchiveFilters {
   genre?: string;
   theme?: string;
   year?: string;
+  edition?: string;
+  age?: string;
   adaptationReady?: boolean;
   page?: number;
 }
@@ -40,6 +42,7 @@ export interface ArchiveRow {
   visibility: Visibility;
   adaptation_ready: boolean;
   year: number | null;
+  cover_key: string | null;
 }
 
 export const PAGE_SIZE = 12;
@@ -68,6 +71,8 @@ export async function searchArchive(
     ['am.country', filters.country],
     ['am.language', filters.language],
     ['am.genre', filters.genre],
+    ['am.edition', filters.edition],
+    ['am.age_band', filters.age],
   ] as const) {
     if (value) {
       params.push(value);
@@ -94,11 +99,13 @@ export async function searchArchive(
     const rows = await query<ArchiveRow>(
       `SELECT s.id, s.slug, s.title, s.synopsis, s.language, s.genre, s.themes, s.published_at,
               COALESCE(NULLIF(p.pen_name, ''), NULLIF(p.display_name, ''), u.name) AS author_name,
-              p.slug AS author_slug, am.country, am.visibility, am.adaptation_ready, am.year
+              p.slug AS author_slug, am.country, am.visibility, am.adaptation_ready, am.year,
+              fc.storage_key AS cover_key
          FROM stories s
          JOIN archive_metadata am ON am.story_id = s.id
          JOIN users u ON u.id = s.author_id
          LEFT JOIN profiles p ON p.user_id = s.author_id
+         LEFT JOIN files fc ON fc.id = s.cover_file_id
         WHERE ${where.join(' AND ')}
         ORDER BY ${rankOrder} s.published_at DESC NULLS LAST, s.title
         LIMIT ${PAGE_SIZE} OFFSET ${offset}`,
@@ -124,10 +131,20 @@ export interface ArchiveFacets {
   genres: string[];
   themes: string[];
   years: number[];
+  editions: string[];
+  ageBands: string[];
 }
 
 export async function archiveFacets(user: SessionUser | null): Promise<ArchiveFacets> {
-  const empty: ArchiveFacets = { countries: [], languages: [], genres: [], themes: [], years: [] };
+  const empty: ArchiveFacets = {
+    countries: [],
+    languages: [],
+    genres: [],
+    themes: [],
+    years: [],
+    editions: [],
+    ageBands: [],
+  };
   if (!isDbConfigured()) return empty;
   try {
     const row = await queryOne<{
@@ -136,12 +153,16 @@ export async function archiveFacets(user: SessionUser | null): Promise<ArchiveFa
       genres: string[] | null;
       themes: string[] | null;
       years: number[] | null;
+      editions: string[] | null;
+      age_bands: string[] | null;
     }>(
       `SELECT array_remove(array_agg(DISTINCT am.country), NULL)  AS countries,
               array_remove(array_agg(DISTINCT am.language), NULL) AS languages,
               array_remove(array_agg(DISTINCT am.genre), NULL)    AS genres,
               array_remove(array_agg(DISTINCT t), NULL)           AS themes,
-              array_remove(array_agg(DISTINCT am.year), NULL)     AS years
+              array_remove(array_agg(DISTINCT am.year), NULL)     AS years,
+              array_remove(array_agg(DISTINCT am.edition), NULL)  AS editions,
+              array_remove(array_agg(DISTINCT am.age_band), NULL) AS age_bands
          FROM archive_metadata am
          JOIN stories s ON s.id = am.story_id
          LEFT JOIN LATERAL unnest(am.themes) AS t ON true
@@ -155,6 +176,8 @@ export async function archiveFacets(user: SessionUser | null): Promise<ArchiveFa
       genres: (row?.genres ?? []).filter(Boolean).sort(),
       themes: (row?.themes ?? []).filter(Boolean).sort(),
       years: (row?.years ?? []).filter(Boolean).sort((a, b) => b - a),
+      editions: (row?.editions ?? []).filter(Boolean).sort(),
+      ageBands: (row?.age_bands ?? []).filter(Boolean).sort(),
     };
   } catch (e) {
     console.error(`[archive:facets] ${(e as Error).message}`);
@@ -187,13 +210,15 @@ export async function archiveStory(user: SessionUser | null, slug: string): Prom
               p.slug AS author_slug, COALESCE(p.bio, '') AS author_bio, p.country AS author_country,
               am.country, am.region, am.visibility, am.adaptation_ready, am.year,
               am.cultural_context, am.keywords, am.age_band, am.edition,
-              c.name AS competition_name
+              c.name AS competition_name,
+              fc.storage_key AS cover_key
          FROM stories s
          JOIN archive_metadata am ON am.story_id = s.id
          JOIN users u ON u.id = s.author_id
          LEFT JOIN profiles p ON p.user_id = s.author_id
          LEFT JOIN submissions sub ON sub.id = s.submission_id
          LEFT JOIN competitions c ON c.id = sub.competition_id
+         LEFT JOIN files fc ON fc.id = s.cover_file_id
         WHERE s.slug = $1
           AND am.visibility = ANY($2::text[])
           AND s.status IN ('published', 'archived', 'approved')`,
@@ -256,11 +281,13 @@ export async function storiesByAuthor(user: SessionUser | null, authorId: string
     return await query<ArchiveRow>(
       `SELECT s.id, s.slug, s.title, s.synopsis, s.language, s.genre, s.themes, s.published_at,
               COALESCE(NULLIF(p.pen_name, ''), NULLIF(p.display_name, ''), u.name) AS author_name,
-              p.slug AS author_slug, am.country, am.visibility, am.adaptation_ready, am.year
+              p.slug AS author_slug, am.country, am.visibility, am.adaptation_ready, am.year,
+              fc.storage_key AS cover_key
          FROM stories s
          JOIN archive_metadata am ON am.story_id = s.id
          JOIN users u ON u.id = s.author_id
          LEFT JOIN profiles p ON p.user_id = s.author_id
+         LEFT JOIN files fc ON fc.id = s.cover_file_id
         WHERE s.author_id = $1
           AND am.visibility = ANY($2::text[])
           AND s.status IN ('published', 'archived', 'approved')

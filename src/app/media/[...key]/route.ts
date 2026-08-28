@@ -14,7 +14,8 @@ import { getObject, R2_PREFIX } from '@/lib/r2';
  * app links straight at it instead — no code change.
  */
 
-const SERVABLE = [`${R2_PREFIX}/brand/`, `${R2_PREFIX}/media/`];
+// `cover/` objects are uploaded with visibility 'public' by the admin console.
+const SERVABLE = [`${R2_PREFIX}/brand/`, `${R2_PREFIX}/media/`, `${R2_PREFIX}/cover/`];
 
 export async function GET(_req: Request, ctx: { params: Promise<{ key: string[] }> }) {
   const { key } = await ctx.params;

@@ -18,8 +18,10 @@ const NAV: NavItem[] = [
   { href: '/dashboard/admin/inquiries', label: 'Rights enquiries', staffOnly: true },
   { href: '/dashboard/admin/messages', label: 'Messages', staffOnly: true },
   { href: '/dashboard/admin/content', label: 'Site content', staffOnly: true },
+  { href: '/dashboard/admin/files', label: 'File library', staffOnly: true },
   { href: '/dashboard/admin/users', label: 'People & roles', staffOnly: true },
   { href: '/dashboard/admin/audit', label: 'Audit log', staffOnly: true },
+  { href: '/dashboard/admin/settings', label: 'Settings', roles: ['super_admin'] },
   { href: '/dashboard/profile', label: 'My profile' },
   { href: '/dashboard/notifications', label: 'Notifications' },
 ];

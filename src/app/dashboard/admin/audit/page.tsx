@@ -4,7 +4,7 @@ import { Badge, Card, EmptyState, Panel, Table, Td, Th, cx } from '@/components/
 import { requireStaff } from '@/lib/permissions';
 import { formatDateTime } from '@/lib/format';
 import { auditLog, notificationLog } from '@/features/admin/queries';
-import { PruneButton } from '@/features/admin/Ops';
+import { PruneButton, RetryEmailsButton } from '@/features/admin/Ops';
 
 const ENTITY_FILTERS = ['submission', 'story', 'user', 'competition', 'guardian_consent', 'file'];
 
@@ -96,6 +96,11 @@ export default async function AdminAuditPage({
           description="Every message the platform intended to send, whether or not it left the building."
           action={failed.length > 0 ? <Badge tone="bad">{failed.length} failed</Badge> : undefined}
         >
+          {failed.length > 0 && (
+            <div className="mb-5">
+              <RetryEmailsButton />
+            </div>
+          )}
           {notifications.length === 0 ? (
             <p className="text-sm text-muted">No email has been sent yet.</p>
           ) : (

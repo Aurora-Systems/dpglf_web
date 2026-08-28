@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:push": "node scripts/db-push.mjs",
     "db:seed": "node scripts/seed.mjs",
-    "assets:upload": "node scripts/upload-assets.mjs"
+    "assets:upload": "node scripts/upload-assets.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1109.0",
@@ -35,6 +36,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }

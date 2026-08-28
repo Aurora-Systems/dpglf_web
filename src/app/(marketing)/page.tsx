@@ -11,19 +11,26 @@ import {
   impactMetrics,
   latestNews,
   publicPartners,
+  siteAnnouncement,
 } from '@/features/marketing/queries';
 
 export default async function HomePage() {
-  const [competition, stories, metrics, news, partners] = await Promise.all([
+  const [competition, stories, metrics, news, partners, announcement] = await Promise.all([
     featuredCompetition(),
     featuredStories(3),
     impactMetrics(),
     latestNews(3),
     publicPartners(),
+    siteAnnouncement(),
   ]);
 
   return (
     <>
+      {announcement && (
+        <div className="bg-gold-500 px-5 py-2.5 text-center text-sm font-medium text-forest-950">
+          {announcement}
+        </div>
+      )}
       {/* ---- hero -------------------------------------------------------- */}
       <section className="texture-weave relative overflow-hidden bg-forest-950">
         <div

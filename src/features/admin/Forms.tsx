@@ -7,9 +7,11 @@ import { Alert, Badge, cx } from '@/components/ui';
 import { IDLE } from '@/lib/actions';
 import { ROLES, ROLE_LABELS, type Role } from '@/lib/roles';
 import { VISIBILITY_HELP, VISIBILITY_LABELS } from '@/lib/workflow';
+import { FileField } from '@/components/client';
 import {
   addPublicationAction,
   createStoryAction,
+  uploadCoverAction,
   drainEmoworldAction,
   enqueueStoryAction,
   saveArchiveMetaAction,
@@ -19,6 +21,7 @@ import {
   saveRightsAction,
   saveRubricAction,
   saveStoryAction,
+  saveSettingAction,
   setEligibilityNoteAction,
   setUserStatusAction,
   updateInquiryAction,
@@ -600,6 +603,34 @@ export function ArchiveMetaForm({
   );
 }
 
+export function CoverForm({ storyId, coverUrl }: { storyId: string; coverUrl: string | null }) {
+  const [state, action] = useActionState(uploadCoverAction, IDLE);
+
+  return (
+    <form action={action} className="space-y-3">
+      {state.message && <Alert tone={state.ok ? 'success' : 'error'}>{state.message}</Alert>}
+      <input type="hidden" name="storyId" value={storyId} />
+      {coverUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- same-origin /media proxy
+        <img src={coverUrl} alt="Current cover" className="w-full rounded-lg border border-line object-cover" />
+      )}
+      <FileField
+        name="cover"
+        accept="image/jpeg,image/png,image/webp"
+        maxBytes={5 * 1024 * 1024}
+        required={!coverUrl}
+        label={coverUrl ? 'Replace cover' : 'Choose cover image'}
+      />
+      <SubmitButton variant="outline" size="sm" pendingLabel="Uploading…">
+        {coverUrl ? 'Replace cover' : 'Upload cover'}
+      </SubmitButton>
+      <p className="text-[12px] text-muted">
+        JPEG, PNG or WebP up to 5 MB. Shown on the public archive card and story page.
+      </p>
+    </form>
+  );
+}
+
 export function RightsForm({
   storyId,
   record,
@@ -995,6 +1026,70 @@ export function PageForm({
       )}
 
       <SubmitButton pendingLabel="Saving…">Save page</SubmitButton>
+    </form>
+  );
+}
+
+// ---- settings -----------------------------------------------------------------------
+
+export function SettingForm({
+  settingKey,
+  currentValue,
+  label,
+  hint,
+  multiline,
+}: {
+  settingKey: string;
+  currentValue: string;
+  label: string;
+  hint?: string;
+  multiline?: boolean;
+}) {
+  const [state, action] = useActionState(saveSettingAction, IDLE);
+
+  return (
+    <form action={action} className="space-y-3">
+      {state.message && <Alert tone={state.ok ? 'success' : 'error'}>{state.message}</Alert>}
+      <input type="hidden" name="key" value={settingKey} />
+      <Field label={label} htmlFor={`setting-${settingKey}`} hint={hint}>
+        {multiline ? (
+          <Textarea
+            id={`setting-${settingKey}`}
+            name="value"
+            rows={3}
+            maxLength={2000}
+            defaultValue={currentValue}
+          />
+        ) : (
+          <Input id={`setting-${settingKey}`} name="value" maxLength={2000} defaultValue={currentValue} />
+        )}
+      </Field>
+      <SubmitButton variant="outline" size="sm" pendingLabel="Saving…">
+        Save
+      </SubmitButton>
+    </form>
+  );
+}
+
+export function NewSettingForm() {
+  const [state, action] = useActionState(saveSettingAction, IDLE);
+
+  return (
+    <form action={action} className="grid gap-3 sm:grid-cols-[14rem_1fr_auto] sm:items-end">
+      {state.message && (
+        <div className="sm:col-span-3">
+          <Alert tone={state.ok ? 'success' : 'error'}>{state.message}</Alert>
+        </div>
+      )}
+      <Field label="Key" htmlFor="new-setting-key" hint="e.g. archive.featured_limit">
+        <Input id="new-setting-key" name="key" maxLength={120} pattern="[A-Za-z0-9._\-]+" required />
+      </Field>
+      <Field label="Value" htmlFor="new-setting-value" hint="Plain text, or a JSON document.">
+        <Input id="new-setting-value" name="value" maxLength={2000} required />
+      </Field>
+      <SubmitButton variant="outline" size="sm" pendingLabel="Saving…">
+        Add
+      </SubmitButton>
     </form>
   );
 }

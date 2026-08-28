@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { PageHeader } from '@/components/dashboard/Shell';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
-import { Badge, Card, EmptyState, Panel, Table, Td, Th, buttonClass, cx } from '@/components/ui';
+import { Badge, ButtonLink, Card, EmptyState, Panel, Table, Td, Th, buttonClass, cx } from '@/components/ui';
 import { requireStaff } from '@/lib/permissions';
 import { formatDate, formatNumber } from '@/lib/format';
 import { SUBMISSION_STATUSES, STATUS_LABELS } from '@/lib/workflow';
@@ -38,6 +38,22 @@ export default async function AdminSubmissionsPage({
       <PageHeader
         title="All submissions"
         lead="The operational view: eligibility, consent, judging coverage and where each entry sits."
+        action={
+          <ButtonLink
+            href={`/api/export/submissions${(() => {
+              const params = new URLSearchParams();
+              if (sp.competition) params.set('competition', sp.competition);
+              if (sp.status) params.set('status', sp.status);
+              if (sp.q) params.set('q', sp.q);
+              const qs = params.toString();
+              return qs ? `?${qs}` : '';
+            })()}`}
+            variant="outline"
+            size="sm"
+          >
+            Export CSV
+          </ButtonLink>
+        }
       />
 
       <div className="space-y-6">
