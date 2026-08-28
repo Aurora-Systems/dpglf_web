@@ -1,5 +1,5 @@
 import { queryOne } from './db';
-import { buildKey, putObject, signedDownloadUrl } from './r2';
+import { buildKey, deleteObject, putObject, signedDownloadUrl } from './r2';
 
 /**
  * Manuscript and asset intake.
@@ -165,4 +165,19 @@ export async function downloadUrlForFile(fileId: string): Promise<string | null>
   );
   if (!row) return null;
   return signedDownloadUrl(row.storage_key, { filename: row.original_name, expiresIn: 300 });
+}
+
+/**
+ * Remove a just-registered file after the write it belonged to failed.
+ *
+ * `storeFile()` commits its `files` row outside the caller's transaction (the
+ * R2 PUT cannot be rolled back), so a failure downstream would otherwise leave
+ * an object nothing references. Best effort: an orphan is untidy, not unsafe.
+ */
+export async function discardFile(fileId: string): Promise<void> {
+  const row = await queryOne<{ storage_key: string }>(
+    `DELETE FROM files WHERE id = $1 RETURNING storage_key`,
+    [fileId],
+  );
+  if (row) await deleteObject(row.storage_key);
 }

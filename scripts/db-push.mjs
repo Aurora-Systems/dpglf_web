@@ -26,7 +26,9 @@ function loadEnv(path) {
 
 loadEnv('.env.local');
 
-const url = process.env.DATABASE_URL;
+// DDL goes over the direct endpoint where one is configured — the pooler is
+// for short application queries, not long schema transactions.
+const url = process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL;
 if (!url) {
   console.error('DATABASE_URL is not set. Add it to .env.local first.');
   process.exit(1);

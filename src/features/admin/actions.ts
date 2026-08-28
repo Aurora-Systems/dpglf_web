@@ -71,7 +71,12 @@ export async function saveCompetitionAction(_prev: ActionState, form: FormData):
         [id],
       )
     : null;
-  const rulesChanged = Boolean(previous && previous.rules_html !== sanitizeRichText(d.rulesHtml ?? ''));
+  // Compare sanitised-to-sanitised. Rules seeded or imported as raw HTML are
+  // not in canonical form, and comparing raw-to-sanitised would bump the version
+  // on the first save that changed nothing meaningful.
+  const rulesChanged = Boolean(
+    previous && sanitizeRichText(previous.rules_html) !== sanitizeRichText(d.rulesHtml ?? ''),
+  );
   const rulesVersion = rulesChanged
     ? `v${Number((previous!.rules_version.match(/\d+/) ?? ['1'])[0]) + 1}`
     : (previous?.rules_version ?? 'v1');

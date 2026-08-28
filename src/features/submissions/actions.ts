@@ -9,7 +9,7 @@ import { randomToken, referenceCode, sha256Hex } from '@/lib/crypto';
 import { query, queryOne, tx } from '@/lib/db';
 import { abs, templates } from '@/lib/email';
 import { countWords, formatDateTime } from '@/lib/format';
-import { UploadError, extractText, storeFile, validateManuscript } from '@/lib/files';
+import { UploadError, discardFile, extractText, storeFile, validateManuscript } from '@/lib/files';
 import { notify } from '@/lib/notify';
 import { submissionAccess } from '@/lib/permissions';
 import { rateLimit } from '@/lib/ratelimit';
@@ -190,26 +190,36 @@ export async function uploadManuscriptAction(_prev: ActionState, form: FormData)
     );
   }
 
-  await tx(async (q) => {
-    await q(
-      `UPDATE submissions
-          SET file_id = $2, extracted_text = $3, word_count = $4, updated_at = now()
-        WHERE id = $1`,
-      [submission.id, stored.id, text.slice(0, 500_000), words || null],
-    );
-    // Version 1 is the manuscript as submitted. Later revisions add rows; this
-    // one is never overwritten.
-    await q(
-      `INSERT INTO story_versions (submission_id, version_number, file_id, extracted_text, word_count, change_note, created_by)
-       VALUES ($1, 1, $2, $3, $4, 'Original submission', $5)
-       ON CONFLICT (submission_id, version_number)
-       DO UPDATE SET file_id = EXCLUDED.file_id,
-                     extracted_text = EXCLUDED.extracted_text,
-                     word_count = EXCLUDED.word_count,
-                     created_at = now()`,
-      [submission.id, stored.id, text.slice(0, 500_000), words || null, user.userId],
-    );
-  });
+  try {
+    await tx(async (q) => {
+      await q(
+        `UPDATE submissions
+            SET file_id = $2, extracted_text = $3, word_count = $4, updated_at = now()
+          WHERE id = $1`,
+        [submission.id, stored.id, text.slice(0, 500_000), words || null],
+      );
+      // Version 1 is the manuscript as submitted. Later revisions add rows; this
+      // one is never overwritten.
+      await q(
+        `INSERT INTO story_versions (submission_id, version_number, file_id, extracted_text, word_count, change_note, created_by)
+         VALUES ($1, 1, $2, $3, $4, 'Original submission', $5)
+         -- The unique index is partial (WHERE submission_id IS NOT NULL), so the
+         -- predicate has to be repeated here for Postgres to infer it.
+         ON CONFLICT (submission_id, version_number) WHERE submission_id IS NOT NULL
+         DO UPDATE SET file_id = EXCLUDED.file_id,
+                       extracted_text = EXCLUDED.extracted_text,
+                       word_count = EXCLUDED.word_count,
+                       created_at = now()`,
+        [submission.id, stored.id, text.slice(0, 500_000), words || null, user.userId],
+      );
+    });
+  } catch (e) {
+    // The object is already in R2 and registered in `files`, but nothing now
+    // points at it. Clean both up rather than accumulating orphans.
+    console.error(`[submission:upload:tx] ${(e as Error).message}`);
+    await discardFile(stored.id).catch(() => {});
+    return fail('The upload could not be saved. Please try again.');
+  }
 
   revalidatePath(`/dashboard/submissions/${submission.id}/edit`);
   return ok(
