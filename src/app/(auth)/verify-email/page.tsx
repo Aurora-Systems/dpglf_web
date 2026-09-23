@@ -27,7 +27,7 @@ export default async function VerifyEmailPage({
         )}
         {result === 'already' && (
           <Alert tone="info" title="Already confirmed">
-            This address was confirmed previously — nothing more to do.
+            This address was confirmed previously. There is nothing more to do.
           </Alert>
         )}
         {result === 'invalid' && (

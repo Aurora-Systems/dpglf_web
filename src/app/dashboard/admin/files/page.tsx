@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { PageHeader } from '@/components/dashboard/Shell';
-import { Badge, ButtonLink, Card, EmptyState, Panel, Table, Td, Th, cx } from '@/components/ui';
+import { Badge, ButtonAnchor, Card, EmptyState, Panel, Table, Td, Th, cx } from '@/components/ui';
 import { requireStaff } from '@/lib/permissions';
 import { formatBytes, formatDateTime } from '@/lib/format';
 import { adminFiles } from '@/features/admin/queries';
@@ -30,7 +30,7 @@ export default async function AdminFilesPage({
     <>
       <PageHeader
         title="File library"
-        lead="Every object registered in R2 — manuscripts, revisions, covers and evidence. Downloads go through the permission-checked file gate and are audited."
+        lead="Every object registered in R2: manuscripts, revisions, covers and evidence. Downloads go through the permission-checked file gate and are audited."
       />
 
       <div className="space-y-6">
@@ -91,12 +91,12 @@ export default async function AdminFilesPage({
                       </Badge>
                     </Td>
                     <Td className="max-w-52 truncate text-xs text-muted">{f.linked_to ?? 'Unlinked'}</Td>
-                    <Td className="text-xs text-muted">{f.owner_name ?? '—'}</Td>
+                    <Td className="text-xs text-muted">{f.owner_name ?? 'Unknown'}</Td>
                     <Td className="text-xs whitespace-nowrap text-muted">{formatDateTime(f.created_at)}</Td>
                     <Td>
-                      <ButtonLink href={`/api/files/${f.id}`} variant="outline" size="sm">
+                      <ButtonAnchor href={`/api/files/${f.id}`} variant="outline" size="sm">
                         Download
-                      </ButtonLink>
+                      </ButtonAnchor>
                     </Td>
                   </tr>
                 ))}

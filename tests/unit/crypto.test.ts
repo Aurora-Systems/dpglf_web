@@ -4,6 +4,7 @@ import {
   needsRehash,
   randomToken,
   referenceCode,
+  secretsEqual,
   sha256Hex,
   verifyPassword,
 } from '@/lib/crypto';
@@ -52,5 +53,14 @@ describe('tokens and references', () => {
     expect(await sha256Hex('abc')).toBe(
       'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
     );
+  });
+});
+
+describe('secretsEqual', () => {
+  it('matches only identical secrets, whatever their lengths', async () => {
+    expect(await secretsEqual('Bearer abc', 'Bearer abc')).toBe(true);
+    expect(await secretsEqual('Bearer abc', 'Bearer abd')).toBe(false);
+    expect(await secretsEqual('Bearer abc', 'Bearer abcd')).toBe(false);
+    expect(await secretsEqual('', 'Bearer abc')).toBe(false);
   });
 });

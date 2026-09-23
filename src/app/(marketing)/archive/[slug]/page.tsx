@@ -136,15 +136,15 @@ export default async function StoryPage({ params }: Props) {
             <h2 className="font-display text-lg font-semibold text-forest-900">Record</h2>
             <DescList
               rows={[
-                ['Language', story.language ?? '—'],
-                ['Country', story.country ?? '—'],
-                ['Region', story.region ?? '—'],
-                ['Genre', story.genre ?? '—'],
-                ['Age band', story.age_band?.replace(/_/g, '–') ?? '—'],
-                ['Length', story.word_count ? `${formatNumber(story.word_count)} words` : '—'],
-                ['Programme', story.competition_name ?? '—'],
-                ['Edition', story.edition ?? '—'],
-                ['Published', formatDate(story.published_at)],
+                ['Language', story.language ?? 'Not recorded'],
+                ['Country', story.country ?? 'Not recorded'],
+                ['Region', story.region ?? 'Not recorded'],
+                ['Genre', story.genre ?? 'Not recorded'],
+                ['Age band', story.age_band?.replace(/_/g, '–') ?? 'Not recorded'],
+                ['Length', story.word_count ? `${formatNumber(story.word_count)} words` : 'Not recorded'],
+                ['Programme', story.competition_name ?? 'Not recorded'],
+                ['Edition', story.edition ?? 'Not recorded'],
+                ['Published', story.published_at ? formatDate(story.published_at) : 'Not yet'],
               ]}
             />
             {story.keywords.length > 0 && (
@@ -169,7 +169,7 @@ export default async function StoryPage({ params }: Props) {
                   <li key={p.id}>
                     <p className="font-medium text-forest-900">{p.title || p.edition || p.publication_type}</p>
                     <p className="text-muted">
-                      {[p.publisher, p.edition, formatDate(p.publication_date)].filter(Boolean).join(' · ')}
+                      {[p.publisher, p.edition, p.publication_date && formatDate(p.publication_date)].filter(Boolean).join(' · ')}
                     </p>
                     {p.isbn && <p className="text-xs text-muted">ISBN {p.isbn}</p>}
                   </li>

@@ -12,8 +12,13 @@ export interface ActionState {
 
 export const IDLE: ActionState = {};
 
-export function fail(message: string, errors?: Record<string, string>): ActionState {
-  return { ok: false, message, errors };
+/**
+ * `data` can carry the submitted values back, so a form that React resets after
+ * the action (its uncontrolled fields return to their defaults) can use them as
+ * the new defaults instead of losing what was typed.
+ */
+export function fail(message: string, errors?: Record<string, string>, data?: Record<string, unknown>): ActionState {
+  return { ok: false, message, errors, data };
 }
 
 export function invalid(error: ZodError): ActionState {

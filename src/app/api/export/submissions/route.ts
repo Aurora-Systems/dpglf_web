@@ -10,6 +10,8 @@ import { adminSubmissions } from '@/features/admin/queries';
  * itself is audited.
  */
 export async function GET(req: Request) {
+  // A router prefetch is not an export: run nothing and record nothing.
+  if (req.headers.has('next-router-prefetch')) return new Response(null, { status: 204 });
   let user;
   try {
     user = await requireApiRole(['admin', 'super_admin']);
@@ -81,6 +83,10 @@ export async function GET(req: Request) {
 }
 
 function escapeCsv(value: unknown): string {
-  const s = String(value ?? '');
+  let s = String(value ?? '');
+  // Titles and names are writer-supplied. A cell starting with = + - @ (or a
+  // tab or CR) runs as a formula when the file is opened in Excel or Sheets, so
+  // prefix it with an apostrophe to force it to be read as text.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }

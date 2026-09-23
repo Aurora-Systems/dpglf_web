@@ -19,6 +19,10 @@ const STATIC_ROUTES = [
   '/policies',
 ];
 
+// A sitemap is cached at build time by default, which would freeze it before the
+// first story is ever published. Rebuild it hourly instead.
+export const revalidate = 3600;
+
 async function rows<T>(sql: string): Promise<T[]> {
   if (!isDbConfigured()) return [];
   try {

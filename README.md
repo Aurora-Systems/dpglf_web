@@ -33,6 +33,10 @@ No ORM. Queries are SQL in `src/features/*/queries.ts`, typed at the call site.
 
 ## Getting started
 
+Needs Node 22 or later: database transactions use the global `WebSocket`, which Node 20 lacks.
+Deadlines are entered and shown in Harare time (CAT); uploads are capped at 4 MB to fit Netlify's
+6 MB request limit.
+
 ```bash
 pnpm install
 cp .env.example .env.local     # fill in DATABASE_URL, AUTH_SECRET, R2 and Resend keys

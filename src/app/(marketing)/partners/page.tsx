@@ -88,7 +88,7 @@ export default async function PartnersPage() {
         <SectionHeading
           eyebrow="Where partnerships fit"
           title="Five kinds of collaboration"
-          lead="Each type of partner unlocks a different part of the pathway — and strengthens the Foundation’s case for the next one."
+          lead="Each type of partner unlocks a different part of the pathway and strengthens the Foundation’s case for the next one."
         />
         <div className="mt-12 space-y-5">
           {CATEGORIES.map((c) => (
@@ -121,7 +121,7 @@ export default async function PartnersPage() {
               title="Give a young writer the guidance you wish you had had"
             />
             <p className="mt-6 leading-relaxed text-muted">
-              Mentors work with one or two writers through a documented development cycle — story
+              Mentors work with one or two writers through a documented development cycle covering story
               structure, character, dialogue, editing, research, cultural authenticity and
               intellectual property awareness. Judges read assigned entries and score them against a
               published rubric.

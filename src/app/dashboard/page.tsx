@@ -34,7 +34,7 @@ export default async function DashboardPage({
       <div className="space-y-6">
         {flags.welcome && (
           <Alert tone="success" title="Your account is ready">
-            We have sent a confirmation link to {user.email}. Confirm it when you can — it is
+            We have sent a confirmation link to {user.email}. Confirm it when you can. It is
             required before an entry can be submitted.
           </Alert>
         )}

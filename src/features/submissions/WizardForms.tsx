@@ -73,7 +73,7 @@ export function MetaForm({
         label="Synopsis"
         htmlFor="synopsis"
         required
-        hint="A short summary for the judges — what happens, and why it matters."
+        hint="A short summary for the judges: what happens, and why it matters."
         error={state.errors?.synopsis}
       >
         <CountedTextarea
@@ -169,7 +169,7 @@ export function ManuscriptForm({
       <input type="hidden" name="submissionId" value={submissionId} />
 
       <p className="text-sm text-muted">
-        Word (.docx), PDF, RTF or plain text, up to 10 MB. This competition accepts{' '}
+        Word (.docx), PDF, RTF or plain text, up to 4 MB. This competition accepts{' '}
         <strong className="text-forest-900">
           {wordMin.toLocaleString()}–{wordMax.toLocaleString()} words
         </strong>
@@ -221,7 +221,7 @@ export function ConsentForm({
       )}
       {consentStatus === 'pending' && (
         <Alert tone="warning" title="Waiting for your guardian">
-          We emailed {guardianEmail}. Ask them to check their inbox — including the spam folder.
+          We emailed {guardianEmail}. Ask them to check their inbox, including the spam folder.
         </Alert>
       )}
       {consentStatus === 'revoked' && (

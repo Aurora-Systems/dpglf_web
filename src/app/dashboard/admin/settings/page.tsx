@@ -30,7 +30,7 @@ export default async function AdminSettingsPage() {
       <div className="space-y-6">
         <Panel
           title="Site announcement"
-          description="Shown as a banner at the top of the marketing homepage — calls for submissions, deadline reminders, results news. Leave empty to hide it."
+          description="Shown as a banner at the top of the marketing homepage. Use it for calls for submissions, deadline reminders and results news. Leave empty to hide it."
         >
           <SettingForm
             settingKey="site.announcement"

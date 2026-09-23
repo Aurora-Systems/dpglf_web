@@ -27,7 +27,7 @@ export default async function AdminCompetitionsPage() {
         <Panel title="All competitions">
           {competitions.length === 0 ? (
             <EmptyState title="No competitions yet">
-              Create the first one below — Tales from the Baobab is the flagship programme.
+              Create the first one below. Tales from the Baobab is the flagship programme.
             </EmptyState>
           ) : (
             <Table>

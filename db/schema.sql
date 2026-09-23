@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   token_hash  text NOT NULL UNIQUE,
   expires_at  timestamptz NOT NULL,
   revoked_at  timestamptz,
+  -- Set (with revoked_at) when the token was spent by rotation rather than
+  -- revoked by logout; opens a short grace window for racing requests.
+  rotated_at  timestamptz,
   device_info text NOT NULL DEFAULT '',
   created_at  timestamptz NOT NULL DEFAULT now()
 );
@@ -526,7 +529,10 @@ CREATE TABLE IF NOT EXISTS notifications (
   sent_at    timestamptz,
   read_at    timestamptz,
   attempts   integer NOT NULL DEFAULT 0,
-  last_error text
+  last_error text,
+  -- When a sender last took the row; stops the retry pass re-sending a message
+  -- another request is still delivering.
+  claimed_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS notifications_unsent_idx ON notifications (sent_at) WHERE sent_at IS NULL;
@@ -555,6 +561,8 @@ CREATE TABLE IF NOT EXISTS news_posts (
   excerpt       text NOT NULL DEFAULT '',
   body_html     text NOT NULL DEFAULT '',
   cover_file_id uuid REFERENCES files(id) ON DELETE SET NULL,
+  -- Describes the picture for screen readers (and shows if it fails to load).
+  cover_alt     text NOT NULL DEFAULT '',
   tags          text[] NOT NULL DEFAULT '{}',
   status        text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
   published_at  timestamptz,
@@ -642,7 +650,10 @@ CREATE TABLE IF NOT EXISTS emoworld_sync_queue (
   attempts   integer NOT NULL DEFAULT 0,
   last_error text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  sent_at    timestamptz
+  sent_at    timestamptz,
+  -- When the drain took the row; a 'sending' row older than the claim window
+  -- belonged to a run that died, and is picked up again.
+  claimed_at timestamptz
 );
 CREATE UNIQUE INDEX IF NOT EXISTS emoworld_sync_story_key
   ON emoworld_sync_queue (story_id) WHERE status <> 'cancelled';
@@ -656,7 +667,10 @@ BEGIN
   UPDATE archive_metadata am
      SET search_vector =
            setweight(to_tsvector('english', coalesce(s.title, '')), 'A') ||
-           setweight(to_tsvector('english', coalesce(p.display_name, '')), 'B') ||
+           -- The byline the archive shows: a pen name must not be searchable
+           -- by the real name it stands in for.
+           setweight(to_tsvector('english',
+             coalesce(NULLIF(p.pen_name, ''), NULLIF(p.display_name, ''), '')), 'B') ||
            setweight(to_tsvector('english', array_to_string(am.keywords, ' ')), 'B') ||
            setweight(to_tsvector('english', array_to_string(am.themes, ' ')), 'C') ||
            setweight(to_tsvector('english', coalesce(s.synopsis, '')), 'C') ||
@@ -694,3 +708,35 @@ DROP TRIGGER IF EXISTS stories_search ON stories;
 CREATE TRIGGER stories_search
   AFTER UPDATE OF title, synopsis, body_html ON stories
   FOR EACH ROW EXECUTE FUNCTION stories_search_trigger();
+
+-- A byline change (pen name added, display name edited) re-indexes that author's stories.
+CREATE OR REPLACE FUNCTION profiles_search_trigger() RETURNS trigger AS $$
+BEGIN
+  PERFORM archive_refresh_search(s.id) FROM stories s WHERE s.author_id = NEW.user_id;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS profiles_search ON profiles;
+CREATE TRIGGER profiles_search
+  AFTER UPDATE OF display_name, pen_name ON profiles
+  FOR EACH ROW EXECUTE FUNCTION profiles_search_trigger();
+
+-- Backfill for the pen-name change above: stories whose byline is a pen name
+-- were indexed under the real display name. Only pen-name stories are
+-- re-indexed (a handful), so repeating this on every db:push stays cheap.
+SELECT archive_refresh_search(am.story_id)
+  FROM archive_metadata am
+  JOIN stories s  ON s.id = am.story_id
+  JOIN profiles p ON p.user_id = s.author_id
+ WHERE NULLIF(p.pen_name, '') IS NOT NULL
+   AND p.pen_name IS DISTINCT FROM p.display_name;
+
+-- ---- additive columns --------------------------------------------------------------------
+-- Columns added after first deploy. The CREATE TABLE definitions above already
+-- include them for a fresh database; these bring an existing one level.
+
+ALTER TABLE refresh_tokens      ADD COLUMN IF NOT EXISTS rotated_at timestamptz;
+ALTER TABLE notifications       ADD COLUMN IF NOT EXISTS claimed_at timestamptz;
+ALTER TABLE emoworld_sync_queue ADD COLUMN IF NOT EXISTS claimed_at timestamptz;
+ALTER TABLE news_posts          ADD COLUMN IF NOT EXISTS cover_alt text NOT NULL DEFAULT '';

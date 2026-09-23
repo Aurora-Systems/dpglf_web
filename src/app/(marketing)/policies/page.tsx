@@ -55,7 +55,7 @@ export default async function PoliciesPage() {
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted">{row.summary}</p>
               <p className="mt-3 text-xs text-muted">
-                {row.approved ? `Last updated ${formatDate(row.updatedAt)}` : 'Draft — pending Foundation approval'}
+                {row.approved ? `Last updated ${formatDate(row.updatedAt)}` : 'Draft, pending Foundation approval'}
               </p>
             </Card>
           </li>

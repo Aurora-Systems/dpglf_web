@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/dashboard/Shell';
 import { Alert, Badge, Card, cx } from '@/components/ui';
 import { requireUser, submissionAccess } from '@/lib/permissions';
-import { deadlineLabel, formatBytes, formatNumber } from '@/lib/format';
+import { deadlineLabel, formatBytes, formatDateTime, formatNumber } from '@/lib/format';
 import { submissionDetail } from '@/features/submissions/queries';
 import { MINOR_BANDS, submissionBlockers } from '@/features/submissions/rules';
 import {
@@ -30,6 +30,13 @@ export default async function EditSubmissionPage({ params }: { params: Promise<{
 
   const submission = await submissionDetail(id);
   if (!submission) notFound();
+  // The date this entry can actually be worked on until, as canEditSubmission
+  // decides it: the later of an open reopen window and, for a draft, the close.
+  const candidates = [
+    submission.reopened_until && new Date(submission.reopened_until) > new Date() ? submission.reopened_until : null,
+    submission.status === 'DRAFT' ? submission.closes_at : null,
+  ].filter((d): d is string => Boolean(d));
+  const editableUntil = candidates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
   // A submitted entry is read-only; send the writer to the status page instead.
   if (!access.edit) redirect(`/dashboard/submissions/${id}`);
 
@@ -57,7 +64,7 @@ export default async function EditSubmissionPage({ params }: { params: Promise<{
             {deadlineLabel(submission.closes_at)}
           </>
         }
-        action={<Badge tone="neutral">Draft — not submitted</Badge>}
+        action={<Badge tone="neutral">Draft, not submitted</Badge>}
       />
 
       {/* progress strip */}
@@ -116,7 +123,7 @@ export default async function EditSubmissionPage({ params }: { params: Promise<{
           <Step number={3} title="Guardian consent" done={submission.consent_status === 'granted'}>
             <p className="mb-4 text-sm leading-relaxed text-muted">
               Because you are under eighteen, a parent or guardian has to give consent before your
-              entry can be judged. We email them a link — you do not have to do anything else.
+              entry can be judged. We email them a link, and you do not have to do anything else.
             </p>
             <ConsentForm
               submissionId={submission.id}
@@ -136,8 +143,10 @@ export default async function EditSubmissionPage({ params }: { params: Promise<{
         </Step>
 
         <Alert tone="info">
-          Everything on this page saves as you go. You can close it and come back until{' '}
-          {deadlineLabel(submission.closes_at).toLowerCase()}.{' '}
+          Everything on this page saves as you go.{' '}
+          {editableUntil
+            ? `You can close it and come back any time before ${formatDateTime(editableUntil)}.`
+            : 'You can close it and come back at any time.'}{' '}
           <Link href="/dashboard/submissions" className="underline">
             Back to my submissions
           </Link>

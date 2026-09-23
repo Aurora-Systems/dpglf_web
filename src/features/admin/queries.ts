@@ -216,7 +216,11 @@ export async function adminStories(): Promise<AdminStoryRow[]> {
            FROM stories s
            JOIN users u ON u.id = s.author_id
            LEFT JOIN archive_metadata am ON am.story_id = s.id
-           LEFT JOIN emoworld_sync_queue q ON q.story_id = s.id
+           -- The latest handoff only: cancelled rows stay behind as history.
+           LEFT JOIN LATERAL (
+             SELECT status FROM emoworld_sync_queue
+              WHERE story_id = s.id ORDER BY created_at DESC LIMIT 1
+           ) q ON true
           ORDER BY s.updated_at DESC`,
       ),
     [],
@@ -297,7 +301,10 @@ export async function rightsForStory(storyId: string) {
         status: string;
         notes: string;
       }>(
-        `SELECT id, owner_name, ownership_note, licence_type, territory, term_start, term_end,
+        // Dates as 'YYYY-MM-DD' text: the driver would otherwise hand back Date
+        // objects (which the form's .slice() cannot take), at local midnight.
+        `SELECT id, owner_name, ownership_note, licence_type, territory,
+                term_start::text AS term_start, term_end::text AS term_end,
                 restrictions, status, notes
            FROM rights_records WHERE story_id = $1 ORDER BY created_at DESC`,
         [storyId],
@@ -433,11 +440,43 @@ export async function adminNews() {
         status: string;
         published_at: string | null;
         updated_at: string;
+        cover_key: string | null;
       }>(
-        `SELECT id, slug, title, excerpt, status, published_at, updated_at
-           FROM news_posts ORDER BY COALESCE(published_at, updated_at) DESC LIMIT 200`,
+        `SELECT n.id, n.slug, n.title, n.excerpt, n.status, n.published_at, n.updated_at,
+                f.storage_key AS cover_key
+           FROM news_posts n
+           LEFT JOIN files f ON f.id = n.cover_file_id
+          ORDER BY COALESCE(n.published_at, n.updated_at) DESC LIMIT 200`,
       ),
     [],
+  );
+}
+
+/** One post with everything its edit form needs. */
+export async function adminNewsPost(id: string) {
+  return safe(
+    () =>
+      queryOne<{
+        id: string;
+        slug: string;
+        title: string;
+        excerpt: string;
+        body_html: string;
+        tags: string[];
+        status: string;
+        published_at: string | null;
+        updated_at: string;
+        cover_key: string | null;
+        cover_alt: string;
+      }>(
+        `SELECT n.id, n.slug, n.title, n.excerpt, n.body_html, n.tags, n.status, n.published_at,
+                n.updated_at, f.storage_key AS cover_key, n.cover_alt
+           FROM news_posts n
+           LEFT JOIN files f ON f.id = n.cover_file_id
+          WHERE n.id = $1::uuid`,
+        [id],
+      ),
+    null,
   );
 }
 
@@ -487,7 +526,8 @@ export async function adminFiles(purpose?: string): Promise<AdminFileRow[]> {
                   (SELECT s2.reference || ' · v' || v.version_number
                      FROM story_versions v JOIN submissions s2 ON s2.id = v.submission_id
                     WHERE v.file_id = f.id LIMIT 1),
-                  (SELECT 'Cover · ' || st.title FROM stories st WHERE st.cover_file_id = f.id LIMIT 1)
+                  (SELECT 'Cover · ' || st.title FROM stories st WHERE st.cover_file_id = f.id LIMIT 1),
+                  (SELECT 'News · ' || n.title FROM news_posts n WHERE n.cover_file_id = f.id LIMIT 1)
                 ) AS linked_to
            FROM files f
            LEFT JOIN users u ON u.id = f.owner_id

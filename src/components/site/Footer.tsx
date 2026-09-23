@@ -52,7 +52,7 @@ export function Footer() {
             <Logo tone="dark" />
             <p className="mt-5 max-w-sm text-sm leading-relaxed">
               Building Africa’s leading youth storytelling, publishing and intellectual property
-              ecosystem — so that Africa’s stories are told by Africans, owned by Africans and
+              ecosystem, so that Africa’s stories are told by Africans, owned by Africans and
               celebrated by the world.
             </p>
             <div className="mt-7 max-w-sm">

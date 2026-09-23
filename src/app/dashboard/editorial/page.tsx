@@ -19,7 +19,7 @@ export default async function EditorialPage() {
     <>
       <PageHeader
         title="Editorial"
-        lead="Stories between shortlisting and publication — in mentorship, in editorial, or approved and waiting to be published."
+        lead="Stories between shortlisting and publication: in mentorship, in editorial, or approved and waiting to be published."
       />
 
       <div className="space-y-6">
@@ -90,7 +90,7 @@ export default async function EditorialPage() {
                     <Td className="text-muted">{row.writer_name}</Td>
                     <Td className="text-muted">{row.competition_name}</Td>
                     <Td>
-                      {row.latest_version ? <Badge>v{row.latest_version}</Badge> : <span className="text-muted">—</span>}
+                      {row.latest_version ? <Badge>v{row.latest_version}</Badge> : <span className="text-muted">None</span>}
                     </Td>
                     <Td>
                       <StatusBadge status={row.status} />

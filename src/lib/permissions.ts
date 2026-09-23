@@ -69,6 +69,8 @@ export interface SubmissionAccess {
   edit: boolean;
   /** Judge in a blind round: the writer's identity must stay hidden. */
   anonymised: boolean;
+  /** Reaches the entry only as its judge (blind or not): scores, never corresponds. */
+  judgeOnly: boolean;
 }
 
 const DENIED: SubmissionAccess = {
@@ -76,6 +78,7 @@ const DENIED: SubmissionAccess = {
   readManuscript: false,
   edit: false,
   anonymised: false,
+  judgeOnly: false,
 };
 
 /**
@@ -107,6 +110,8 @@ export async function submissionAccess(
               SELECT 1 FROM review_assignments ra
                WHERE ra.submission_id = s.id AND ra.judge_id = $2
                  AND ra.status IN ('assigned', 'in_progress', 'completed')
+                 -- a withdrawn entry is out of the competition, scored or not
+                 AND s.status <> 'WITHDRAWN'
             ) AS is_assigned_judge,
             EXISTS (
               SELECT 1 FROM mentorships m
@@ -132,6 +137,9 @@ export async function submissionAccess(
     readManuscript: true,
     edit: owner && canEditSubmission(row.status, row.closes_at, row.reopened_until),
     // Blind mode applies to judges only — staff and mentors need the identity.
-    anonymised: judge && !staff && !owner && row.blind_judging,
+    // A judge later paired as the entry's mentor has been shown the writer on
+    // purpose, so the mentor role lifts the blind.
+    anonymised: judge && !staff && !owner && !mentor && row.blind_judging,
+    judgeOnly: judge && !staff && !owner && !mentor,
   };
 }

@@ -16,7 +16,9 @@
   package = "@netlify/plugin-nextjs"
 
 [build.environment]
-  NODE_VERSION = "20"
+  # 22, not 20: the Neon driver's transactions need a global WebSocket, which
+  # Node only ships unflagged from 22. Netlify runs functions on this version too.
+  NODE_VERSION = "22"
   # Public identity, set here rather than in the UI: NEXT_PUBLIC_* values are
   # baked in at build time (email links, sitemap, OG tags), so they must be
   # right on the very first build. Not secrets.

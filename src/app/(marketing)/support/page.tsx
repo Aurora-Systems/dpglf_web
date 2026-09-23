@@ -5,7 +5,7 @@ import { NewsletterForm } from '@/features/marketing/NewsletterForm';
 export const metadata: Metadata = {
   title: 'Support DPGLF',
   description:
-    'Fund a competition, an anthology edition or the Story Archive — and help turn African youth storytelling into a profession.',
+    'Fund a competition, an anthology edition or the Story Archive, and help turn African youth storytelling into a profession.',
 };
 
 const CIRCLES = [
@@ -46,7 +46,7 @@ export default function SupportPage() {
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-bone/75">
               Storytelling ecosystems do not need factories or fleets. They need talent,
-              partnerships and connectivity — which means modest support goes a very long way.
+              partnerships and connectivity, which means modest support goes a very long way.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <ButtonLink href="/contact?topic=support" variant="gold" size="lg">
@@ -54,9 +54,8 @@ export default function SupportPage() {
               </ButtonLink>
               <ButtonLink
                 href="/contact?topic=partnership"
-                variant="ghost"
+                variant="inverse"
                 size="lg"
-                className="border border-bone/25 text-bone hover:border-bone/60 hover:bg-white/6"
               >
                 Corporate sponsorship
               </ButtonLink>
@@ -85,7 +84,7 @@ export default function SupportPage() {
         </div>
         <p className="mt-6 max-w-3xl text-sm text-muted">
           Online membership and donation payments are not part of this release. Until they are, the
-          Foundation arranges giving directly — get in touch and we will set it up.
+          Foundation arranges giving directly. Get in touch and we will set it up.
         </p>
       </section>
 
@@ -110,7 +109,7 @@ export default function SupportPage() {
               <p className="mt-3 text-sm leading-relaxed text-muted">
                 Telecommunications, banking, technology, hospitality, aviation and publishing
                 partners can sponsor a specific anthology, competition, scholarship, workshop
-                series, archive project or language initiative — with clear, reportable outcomes.
+                series, archive project or language initiative, with clear, reportable outcomes.
               </p>
               <ButtonLink href="/contact?topic=partnership" className="mt-6">
                 Discuss a sponsorship

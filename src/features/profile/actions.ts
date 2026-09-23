@@ -93,6 +93,6 @@ export async function saveProfileAction(_prev: ActionState, form: FormData): Pro
   return ok(
     d.isPublic
       ? `Saved. Your public page is at /authors/${slug}.`
-      : 'Saved. Your profile is private — only the Foundation can see it.',
+      : 'Saved. Your profile is private, so only the Foundation can see it.',
   );
 }

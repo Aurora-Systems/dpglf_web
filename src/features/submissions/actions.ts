@@ -11,12 +11,14 @@ import { abs, templates } from '@/lib/email';
 import { countWords, formatDateTime } from '@/lib/format';
 import { UploadError, discardFile, extractText, storeFile, validateManuscript } from '@/lib/files';
 import { notify } from '@/lib/notify';
-import { submissionAccess } from '@/lib/permissions';
+import { hasRole, isStaff, submissionAccess } from '@/lib/permissions';
 import { rateLimit } from '@/lib/ratelimit';
 import { declarationsSchema, guardianConsentSchema, submissionMetaSchema } from '@/lib/validation';
 import { bool, fail, invalid, ok, str, strList, type ActionState } from '@/lib/actions';
 import { submissionDetail, type SubmissionDetail } from './queries';
-import { submissionBlockers } from './rules';
+import { submissionBlockers, withinAgeLimits } from './rules';
+import { applyTransition } from '@/features/workflow/transition';
+import { canTransition } from '@/lib/workflow';
 
 /**
  * The submission wizard's server side.
@@ -78,6 +80,34 @@ export async function startSubmissionAction(_prev: ActionState, form: FormData):
   if (competition.status !== 'open') return fail('That competition is not open for entries.');
   if (competition.closes_at && new Date(competition.closes_at) < new Date()) {
     return fail('That competition has closed.');
+  }
+
+  if (competition.min_age !== null || competition.max_age !== null) {
+    // Age on the closing date: the limit applies to the edition, not the day
+    // the draft happened to be started.
+    const writer = await queryOne<{ age_band: string | null; age: number | null; drift: number }>(
+      `SELECT age_band,
+              date_part('year', age(COALESCE($2::timestamptz, now()), date_of_birth))::int AS age,
+              GREATEST(0, ceil(extract(epoch FROM (COALESCE($2::timestamptz, now()) - created_at)) / 31557600))::int AS drift
+         FROM profiles WHERE user_id = $1`,
+      [user.userId, competition.closes_at],
+    );
+    const fits = withinAgeLimits(
+      { age: writer?.age ?? null, ageBand: writer?.age_band ?? null, drift: writer?.drift ?? 0 },
+      competition.min_age,
+      competition.max_age,
+    );
+    if (!fits) {
+      const range =
+        competition.min_age !== null && competition.max_age !== null
+          ? `aged ${competition.min_age}–${competition.max_age}`
+          : competition.max_age !== null
+            ? `aged ${competition.max_age} or under`
+            : `aged ${competition.min_age} or over`;
+      return fail(
+        `${competition.name} is for writers ${range}. If the age group on your account is wrong, contact the Foundation and we will correct it.`,
+      );
+    }
   }
 
   const existing = await queryOne<{ n: string; draft_id: string | null }>(
@@ -224,7 +254,7 @@ export async function uploadManuscriptAction(_prev: ActionState, form: FormData)
   revalidatePath(`/dashboard/submissions/${submission.id}/edit`);
   return ok(
     words > 0
-      ? `Manuscript uploaded — ${words.toLocaleString()} words.`
+      ? `Manuscript uploaded: ${words.toLocaleString()} words.`
       : 'Manuscript uploaded. We could not read the text automatically, so an administrator will check the length.',
   );
 }
@@ -235,6 +265,11 @@ export async function requestConsentAction(_prev: ActionState, form: FormData): 
   const loaded = await loadEditable(str(form, 'submissionId'));
   if (!loaded.ok) return loaded.error;
   const { user, submission } = loaded;
+
+  // Each request emails an address the writer typed in, so it is capped like
+  // any other outbound form.
+  const limit = await rateLimit('consent', user.userId);
+  if (!limit.ok) return fail('Too many consent requests. Please wait a while before sending another.');
 
   const parsed = guardianConsentSchema.safeParse({
     guardianName: str(form, 'guardianName'),
@@ -454,21 +489,22 @@ export async function withdrawAction(_prev: ActionState, form: FormData): Promis
   const submission = await submissionDetail(submissionId);
   if (!submission) return fail('That submission could not be found.');
   if (submission.writer_id !== user.userId) return fail('Only the writer can withdraw their entry.');
-  if (['PUBLISHED', 'WITHDRAWN'].includes(submission.status)) {
-    return fail('This entry can no longer be withdrawn. Please contact the Foundation.');
+  // The transition table decides, as the writer (not as any staff role they may
+  // also hold): once judging has begun, withdrawal goes through the Foundation.
+  if (!canTransition(submission.status, 'WITHDRAWN', { roles: [], isOwner: true })) {
+    return fail('This entry can no longer be withdrawn here. Please contact the Foundation.');
   }
 
-  await tx(async (q) => {
-    await q(
-      `UPDATE submissions SET status = 'WITHDRAWN', withdrawn_at = now(), updated_at = now() WHERE id = $1`,
-      [submissionId],
-    );
-    await q(
-      `INSERT INTO submission_events (submission_id, from_status, to_status, actor_id, note)
-       VALUES ($1, $2, 'WITHDRAWN', $3, 'Withdrawn by the writer')`,
-      [submissionId, submission.status, user.userId],
-    );
-  });
+  const moved = await tx((q) =>
+    applyTransition(q, {
+      submissionId,
+      from: submission.status,
+      to: 'WITHDRAWN',
+      actorId: user.userId,
+      note: 'Withdrawn by the writer',
+    }),
+  );
+  if (!moved) return fail('This entry changed while you were working. Reload the page and try again.');
 
   await audit({
     actorId: user.userId,
@@ -491,6 +527,10 @@ export async function uploadRevisionAction(_prev: ActionState, form: FormData): 
 
   const submission = await submissionDetail(submissionId);
   if (!submission) return fail('That submission could not be found.');
+  // The writer and the Foundation's staff revise; judges and mentors read.
+  if (submission.writer_id !== user.userId && !isStaff(user) && !hasRole(user, 'editor')) {
+    return fail('Only the writer or the Foundation can upload a revision.');
+  }
   // Revisions belong to the development stages, not to an entry still in judging.
   if (!['SHORTLISTED', 'MENTORSHIP', 'EDITORIAL'].includes(submission.status)) {
     return fail('Revisions can only be uploaded once a story has reached mentorship or editorial.');
@@ -518,33 +558,42 @@ export async function uploadRevisionAction(_prev: ActionState, form: FormData): 
   });
   if (!stored) return fail('The upload failed. Please try again.');
 
-  const next = await queryOne<{ n: number }>(
-    `SELECT COALESCE(max(version_number), 0) + 1 AS n FROM story_versions WHERE submission_id = $1`,
-    [submissionId],
-  );
-
-  await query(
-    `INSERT INTO story_versions
-       (submission_id, version_number, file_id, extracted_text, word_count, change_note, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [
-      submissionId,
-      next?.n ?? 2,
-      stored.id,
-      text.slice(0, 500_000),
-      countWords(text) || null,
-      str(form, 'changeNote').slice(0, 500),
-      user.userId,
-    ],
-  );
+  let version: number;
+  try {
+    version = await tx(async (q) => {
+      // Lock the submission row so two simultaneous uploads number their
+      // versions one after the other instead of both claiming the same number.
+      await q(`SELECT id FROM submissions WHERE id = $1 FOR UPDATE`, [submissionId]);
+      const [row] = await q<{ n: number }>(
+        `INSERT INTO story_versions
+           (submission_id, version_number, file_id, extracted_text, word_count, change_note, created_by)
+         SELECT $1, COALESCE(max(version_number), 0) + 1, $2, $3, $4, $5, $6
+           FROM story_versions WHERE submission_id = $1
+         RETURNING version_number AS n`,
+        [
+          submissionId,
+          stored.id,
+          text.slice(0, 500_000),
+          countWords(text) || null,
+          str(form, 'changeNote').slice(0, 500),
+          user.userId,
+        ],
+      );
+      return row.n;
+    });
+  } catch (e) {
+    console.error(`[revision:upload:tx] ${(e as Error).message}`);
+    await discardFile(stored.id).catch(() => {});
+    return fail('The revision could not be saved. Please try again.');
+  }
 
   await audit({
     actorId: user.userId,
     action: 'submission.revision_uploaded',
     entityType: 'submission',
     entityId: submissionId,
-    metadata: { version: next?.n ?? 2 },
+    metadata: { version },
   });
   revalidatePath(`/dashboard/submissions/${submissionId}`);
-  return ok(`Version ${next?.n ?? 2} uploaded.`);
+  return ok(`Version ${version} uploaded.`);
 }

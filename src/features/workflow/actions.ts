@@ -15,6 +15,7 @@ import {
 } from '@/lib/workflow';
 import { fail, ok, str, type ActionState } from '@/lib/actions';
 import { enqueueStoryForEmoworld } from '@/features/emoworld/sync';
+import { applyTransition } from './transition';
 
 /**
  * The single entry point for moving a submission between states.
@@ -74,17 +75,20 @@ export async function advanceSubmissionAction(_prev: ActionState, form: FormData
     );
   }
 
-  await tx(async (q) => {
-    await q(`UPDATE submissions SET status = $2, updated_at = now() WHERE id = $1`, [submissionId, to]);
-    await q(
-      `INSERT INTO submission_events (submission_id, from_status, to_status, actor_id, note)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [submissionId, submission.status, to, user.userId, note],
-    );
-    if (to === 'INELIGIBLE' && note) {
+  const moved = await tx(async (q) => {
+    const applied = await applyTransition(q, {
+      submissionId,
+      from: submission.status,
+      to,
+      actorId: user.userId,
+      note,
+    });
+    if (applied && to === 'INELIGIBLE' && note) {
       await q(`UPDATE submissions SET eligibility_note = $2 WHERE id = $1`, [submissionId, note]);
     }
+    return applied;
   });
+  if (!moved) return fail('This entry changed while you were working. Reload the page and try again.');
 
   await audit({
     actorId: user.userId,
@@ -155,7 +159,7 @@ export async function advanceSubmissionAction(_prev: ActionState, form: FormData
       const t = templates.statusChange({
         name: submission.writer_name,
         title: submission.title,
-        reference: submission.reference ?? '—',
+        reference: submission.reference ?? 'Not assigned',
         status: STATUS_LABELS[to],
         note,
         link,

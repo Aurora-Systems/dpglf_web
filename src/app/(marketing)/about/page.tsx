@@ -51,7 +51,7 @@ export default function AboutPage() {
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-bone/75">
               DPGLF combines the social mission of a foundation, the sustainability of a social
-              enterprise and the growth potential of an intellectual property venture — so that a
+              enterprise and the growth potential of an intellectual property venture, so that a
               young writer’s first short story can become a published work, a preserved cultural
               record and, in time, an adaptation on screen.
             </p>
@@ -89,8 +89,8 @@ export default function AboutPage() {
                 access to stories reflecting their own histories, traditions and cultural values.
               </p>
               <p>
-                <em>Changamire Dombo — The Legend</em> has been incorporated into Zimbabwe’s Advanced
-                Level Literature curriculum and is distributed in more than twenty-five countries —
+                <em>Changamire Dombo: The Legend</em> has been incorporated into Zimbabwe’s Advanced
+                Level Literature curriculum and is distributed in more than twenty-five countries,
                 proof that authentic African storytelling can bridge cultural preservation,
                 education and commercial viability at once.
               </p>
@@ -119,8 +119,8 @@ export default function AboutPage() {
           <Card className="bg-forest-900 p-9 text-bone">
             <Eyebrow className="text-gold-400">Vision</Eyebrow>
             <p className="font-display mt-4 text-2xl leading-snug">
-              To build Africa’s most influential ecosystem for authentic Afro-inspired storytelling
-              — a permanent archive of youth narratives, a new generation of African writers, and
+              To build Africa’s most influential ecosystem for authentic Afro-inspired storytelling:
+              a permanent archive of youth narratives, a new generation of African writers, and
               literary talent turned into sustainable creative careers.
             </p>
           </Card>
@@ -213,11 +213,7 @@ export default function AboutPage() {
             <ButtonLink href="/how-it-works" variant="gold">
               How the ecosystem works
             </ButtonLink>
-            <ButtonLink
-              href="/partners"
-              variant="ghost"
-              className="border border-bone/25 text-bone hover:border-bone/60 hover:bg-white/6"
-            >
+            <ButtonLink href="/partners" variant="inverse">
               Partner with the Foundation
             </ButtonLink>
           </div>

@@ -22,10 +22,11 @@ const nextConfig: NextConfig = {
     remotePatterns: cdnPattern(),
     formats: ['image/avif', 'image/webp'],
   },
-  // Manuscript uploads go through server actions; the default 1 MB body limit
-  // would reject almost every .docx.
+  // Manuscript and cover uploads go through server actions. The default 1 MB
+  // limit would reject many files; 5 MB fits the 4 MB file cap (lib/files.ts)
+  // plus form fields, and stays inside Netlify's 6 MB request ceiling.
   experimental: {
-    serverActions: { bodySizeLimit: '12mb' },
+    serverActions: { bodySizeLimit: '5mb' },
   },
 };
 

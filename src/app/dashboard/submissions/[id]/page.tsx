@@ -2,11 +2,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/dashboard/Shell';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
-import { Alert, Badge, ButtonLink, Card, DescList, Panel } from '@/components/ui';
+import { Alert, Badge, ButtonAnchor, Card, DescList, Panel } from '@/components/ui';
 import { CopyButton } from '@/components/client';
 import { requireUser, submissionAccess, isStaff, hasRole } from '@/lib/permissions';
 import { formatBytes, formatDate, formatDateTime, formatNumber } from '@/lib/format';
-import { STATUS_LABELS, STATUS_WRITER_COPY, type SubmissionStatus } from '@/lib/workflow';
+import { STATUS_LABELS, STATUS_WRITER_COPY, canTransition, type SubmissionStatus } from '@/lib/workflow';
 import {
   feedbackForSubmission,
   submissionDetail,
@@ -27,7 +27,9 @@ export default async function SubmissionDetailPage({
   const user = await requireUser(`/dashboard/submissions/${id}`);
 
   const access = await submissionAccess(user, id);
-  if (!access.view) notFound();
+  // Judges score from their own assignment page. This one carries the writer's
+  // email, feedback threads, uploaders' names and original filenames.
+  if (!access.view || access.judgeOnly) notFound();
 
   const submission = await submissionDetail(id);
   if (!submission) notFound();
@@ -42,7 +44,7 @@ export default async function SubmissionDetailPage({
 
   const canRevise =
     (isOwner || staffView) && ['SHORTLISTED', 'MENTORSHIP', 'EDITORIAL'].includes(submission.status);
-  const canWithdraw = isOwner && !['PUBLISHED', 'WITHDRAWN'].includes(submission.status);
+  const canWithdraw = isOwner && canTransition(submission.status, 'WITHDRAWN', { roles: [], isOwner: true });
 
   return (
     <>
@@ -56,7 +58,7 @@ export default async function SubmissionDetailPage({
       <div className="space-y-6">
         {submitted && (
           <Alert tone="success" title="Your entry has been submitted">
-            Keep your reference number — it identifies this entry in every conversation with the
+            Keep your reference number. It identifies this entry in every conversation with the
             Foundation. A receipt is on its way to {submission.writer_email}.
           </Alert>
         )}
@@ -110,7 +112,7 @@ export default async function SubmissionDetailPage({
                 rows={[
                   ['Synopsis', <span key="s" className="whitespace-pre-line">{submission.synopsis}</span>],
                   ['Language', submission.language],
-                  ['Genre', submission.genre ?? '—'],
+                  ['Genre', submission.genre ?? 'Not specified'],
                   [
                     'Themes',
                     submission.themes.length > 0 ? (
@@ -120,7 +122,7 @@ export default async function SubmissionDetailPage({
                         ))}
                       </span>
                     ) : (
-                      '—'
+                      'None'
                     ),
                   ],
                   ...(submission.cultural_context
@@ -158,9 +160,9 @@ export default async function SubmissionDetailPage({
                         {v.change_note && <p className="mt-0.5 text-[13px] text-muted">{v.change_note}</p>}
                       </div>
                       {v.file_id && (
-                        <ButtonLink href={`/api/files/${v.file_id}`} variant="outline" size="sm">
+                        <ButtonAnchor href={`/api/files/${v.file_id}`} variant="outline" size="sm">
                           Download
-                        </ButtonLink>
+                        </ButtonAnchor>
                       )}
                     </li>
                   ))}
@@ -256,7 +258,7 @@ export default async function SubmissionDetailPage({
               <h2 className="font-display text-base font-semibold text-forest-900">Your rights</h2>
               <p className="mt-2 text-[13px] leading-relaxed text-muted">
                 You keep copyright in this story. If it is selected for publication, the Foundation
-                will agree the specific licence with you first — publication never changes ownership
+                will agree the specific licence with you first. Publication never changes ownership
                 on its own.
               </p>
               <Link href="/policies/copyright" className="mt-3 inline-block text-[13px] text-gold-700 underline">
@@ -268,7 +270,8 @@ export default async function SubmissionDetailPage({
               <Card className="p-5">
                 <h2 className="font-display text-base font-semibold text-forest-900">Withdraw</h2>
                 <p className="mt-2 text-[13px] leading-relaxed text-muted">
-                  You can take this entry out of the competition at any time before publication.
+                  You can take this entry out of the competition until judging begins. After that,
+                  please contact the Foundation.
                 </p>
                 <div className="mt-3">
                   <WithdrawButton submissionId={id} />

@@ -10,6 +10,7 @@ import { hasRole, isStaff } from '@/lib/access';
 import { submissionAccess } from '@/lib/permissions';
 import { feedbackSchema, milestoneSchema } from '@/lib/validation';
 import { fail, invalid, ok, str, type ActionState } from '@/lib/actions';
+import { applyTransition } from '@/features/workflow/transition';
 
 /**
  * Mentorship and editorial feedback.
@@ -62,6 +63,20 @@ export async function assignMentorAction(_prev: ActionState, form: FormData): Pr
   if (mentor.id === submission.writer_id) return fail('A writer cannot mentor their own story.');
 
   const mentorshipId = await tx(async (q) => {
+    // Read the status under a row lock, so a withdrawal (or consent decline)
+    // landing now either happens first and stops the pairing, or waits for it.
+    const [current] = await q<{ status: string }>(
+      `SELECT status FROM submissions WHERE id = $1 FOR UPDATE`,
+      [submissionId],
+    );
+    if (!current || (current.status !== 'SHORTLISTED' && current.status !== 'MENTORSHIP')) return null;
+    // One live pairing per entry; MENTORSHIP is allowed only so an entry whose
+    // pairing ended can have a new mentor.
+    const [live] = await q(
+      `SELECT 1 FROM mentorships WHERE submission_id = $1 AND status IN ('active', 'paused')`,
+      [submissionId],
+    );
+    if (live) return null;
     const [m] = await q<{ id: string }>(
       `INSERT INTO mentorships (writer_id, mentor_id, submission_id, goal, created_by)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
@@ -75,18 +90,22 @@ export async function assignMentorAction(_prev: ActionState, form: FormData): Pr
       );
     }
     // Shortlisted entries move into MENTORSHIP as the pairing is made.
-    if (submission.status === 'SHORTLISTED') {
-      await q(`UPDATE submissions SET status = 'MENTORSHIP', updated_at = now() WHERE id = $1`, [
+    if (current.status === 'SHORTLISTED') {
+      await applyTransition(q, {
         submissionId,
-      ]);
-      await q(
-        `INSERT INTO submission_events (submission_id, from_status, to_status, actor_id, note)
-         VALUES ($1, 'SHORTLISTED', 'MENTORSHIP', $2, $3)`,
-        [submissionId, user.userId, `Paired with ${mentor.name}`],
-      );
+        from: 'SHORTLISTED',
+        to: 'MENTORSHIP',
+        actorId: user.userId,
+        note: `Paired with ${mentor.name}`,
+      });
     }
     return m.id;
   });
+  if (!mentorshipId) {
+    return fail(
+      'A mentor cannot be assigned: the entry is no longer shortlisted or in mentorship, or it already has an active mentor.',
+    );
+  }
 
   const link = abs(`/dashboard/mentor/${mentorshipId}`);
   const writerLink = abs(`/dashboard/mentorship`);
@@ -151,25 +170,33 @@ export async function postFeedbackAction(_prev: ActionState, form: FormData): Pr
   if (!parsed.success) return invalid(parsed.error);
   const d = parsed.data;
 
-  // Resolve which submission this belongs to, then check access against it.
-  const submissionId =
-    d.submissionId ??
-    (
-      await queryOne<{ submission_id: string | null }>(
-        `SELECT submission_id FROM feedback_threads WHERE id = $1`,
-        [d.threadId],
-      )
-    )?.submission_id ??
-    undefined;
+  // An existing thread decides its own submission and visibility. The form's
+  // values only matter when opening a new one; trusting them for a reply would
+  // let a message land in another entry's thread, checked against the wrong one.
+  let submissionId = d.submissionId;
+  let threadVisibility: 'writer' | 'internal' | null = null;
+  if (d.threadId) {
+    const thread = await queryOne<{ submission_id: string | null; visibility: 'writer' | 'internal' }>(
+      `SELECT submission_id, visibility FROM feedback_threads WHERE id = $1`,
+      [d.threadId],
+    );
+    if (!thread?.submission_id || (d.submissionId && d.submissionId !== thread.submission_id)) {
+      return fail('That conversation could not be found.');
+    }
+    submissionId = thread.submission_id;
+    threadVisibility = thread.visibility;
+  }
   if (!submissionId) return fail('That conversation could not be found.');
 
   const access = await submissionAccess(user, submissionId);
   if (!access.view) return fail('You do not have access to that submission.');
-  // A judge's role is to score, not to correspond with the writer.
-  if (access.anonymised) return fail('Judges cannot post feedback on an entry they are scoring.');
-  // Only staff and editors may open an internal thread.
-  const visibility =
-    d.visibility === 'internal' && (isStaff(user) || hasRole(user, 'editor')) ? 'internal' : 'writer';
+  // A judge's role is to score, not to correspond with the writer, in a blind
+  // round or not.
+  if (access.judgeOnly) return fail('Judges cannot post feedback on an entry they are scoring.');
+  // Only staff and editors may open, or write in, an internal thread.
+  const canInternal = isStaff(user) || hasRole(user, 'editor');
+  if (threadVisibility === 'internal' && !canInternal) return fail('That conversation could not be found.');
+  const visibility = threadVisibility ?? (d.visibility === 'internal' && canInternal ? 'internal' : 'writer');
 
   const threadId =
     d.threadId ??
@@ -274,10 +301,14 @@ export async function endMentorshipAction(_prev: ActionState, form: FormData): P
   const guard = await requireMentorOrStaff(mentorshipId);
   if ('error' in guard) return guard.error;
 
-  await query(
-    `UPDATE mentorships SET status = 'completed', ended_at = now() WHERE id = $1 AND status <> 'completed'`,
+  // Only a live pairing ends here. A cancelled one (its entry was withdrawn)
+  // must stay cancelled: 'completed' would restore the mentor's access to it.
+  const ended = await query<{ id: string }>(
+    `UPDATE mentorships SET status = 'completed', ended_at = now()
+      WHERE id = $1 AND status IN ('active', 'paused') RETURNING id`,
     [mentorshipId],
   );
+  if (ended.length === 0) return fail('This mentorship has already ended.');
   await audit({
     actorId: guard.user.userId,
     action: 'mentorship.completed',

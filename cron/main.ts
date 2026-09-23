@@ -19,6 +19,7 @@
 
 import {
   DEFAULT_TARGET,
+  hasMore,
   isRetryable,
   runMaintenance,
   type RunResult,
@@ -30,28 +31,45 @@ import {
 const TARGET = Deno.env.get('DPGLF_CRON_URL') ?? DEFAULT_TARGET;
 const KEY = Deno.env.get('CRON_KEY') ?? '';
 
+/**
+ * The platform works to a time budget and answers `more: true` when it stopped
+ * early (a burst of reminders near a deadline, an email backlog after an
+ * outage). Call again until it is done, up to this many passes per run.
+ */
+const MAX_PASSES = 6;
+
 async function run(trigger: 'schedule' | 'manual'): Promise<RunResult> {
   if (!KEY) throw new Error('CRON_KEY is not set on this Deno Deploy project');
 
   let result: RunResult;
-  try {
-    result = await runMaintenance({ target: TARGET, key: KEY });
-  } catch (e) {
-    console.error(
-      JSON.stringify({ event: 'dpglf-cron', trigger, ok: false, error: (e as Error).message }),
-    );
-    throw e;
-  }
+  let pass = 0;
+  do {
+    pass++;
+    try {
+      result = await runMaintenance({ target: TARGET, key: KEY });
+    } catch (e) {
+      console.error(
+        JSON.stringify({
+          event: 'dpglf-cron',
+          trigger,
+          pass,
+          ok: false,
+          error: (e as Error).message,
+        }),
+      );
+      throw e;
+    }
 
-  // One structured line per run — the Deno Deploy log view is the dashboard.
-  console.log(JSON.stringify({ event: 'dpglf-cron', trigger, ...result }));
+    // One structured line per pass — the Deno Deploy log view is the dashboard.
+    console.log(JSON.stringify({ event: 'dpglf-cron', trigger, pass, ...result }));
 
-  for (const failure of taskErrors(result.body)) {
-    console.error(`dpglf-cron task failed — ${failure}`);
-  }
-  if (result.status === 401) {
-    console.error('dpglf-cron: 401 from the platform — CRON_KEY here does not match Netlify’s.');
-  }
+    for (const failure of taskErrors(result.body)) {
+      console.error(`dpglf-cron task failed — ${failure}`);
+    }
+    if (result.status === 401) {
+      console.error('dpglf-cron: 401 from the platform — CRON_KEY here does not match Netlify’s.');
+    }
+  } while (result.ok && hasMore(result.body) && pass < MAX_PASSES);
   return result;
 }
 

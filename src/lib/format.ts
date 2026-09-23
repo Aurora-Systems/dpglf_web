@@ -1,8 +1,17 @@
+/**
+ * The Foundation's clock. Deadlines are set, shown and enforced in Harare time
+ * (CAT, UTC+2, no daylight saving), whatever zone the server or the browser is
+ * in; otherwise the same form shows one time when rendered on the server and
+ * another after hydration, and saving it moves the deadline.
+ */
+export const FOUNDATION_TZ = 'Africa/Harare';
+export const FOUNDATION_TZ_LABEL = 'CAT';
+
 const DATE_FMT = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
-  timeZone: 'UTC',
+  timeZone: FOUNDATION_TZ,
 });
 
 const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
@@ -11,26 +20,45 @@ const DATETIME_FMT = new Intl.DateTimeFormat('en-GB', {
   year: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
-  timeZone: 'UTC',
+  timeZone: FOUNDATION_TZ,
 });
 
-export function formatDate(value: string | Date | null | undefined): string {
-  if (!value) return '—';
+/** `YYYY-MM-DDTHH:mm` wall-clock time in Harare, as `<input type="datetime-local">` wants. */
+const LOCAL_INPUT_FMT = new Intl.DateTimeFormat('en-CA', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: FOUNDATION_TZ,
+});
+
+export function toFoundationInput(value: string | Date | null | undefined): string {
+  if (!value) return '';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '—' : DATE_FMT.format(d);
+  if (Number.isNaN(d.getTime())) return '';
+  const parts = Object.fromEntries(LOCAL_INPUT_FMT.formatToParts(d).map((p) => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+export function formatDate(value: string | Date | null | undefined): string {
+  if (!value) return 'Not set';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? 'Not set' : DATE_FMT.format(d);
 }
 
 export function formatDateTime(value: string | Date | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return 'Not set';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '—' : `${DATETIME_FMT.format(d)} UTC`;
+  return Number.isNaN(d.getTime()) ? 'Not set' : `${DATETIME_FMT.format(d)} ${FOUNDATION_TZ_LABEL}`;
 }
 
 /** "in 6 days" / "3 hours ago" — used for deadlines and queues. */
 export function relativeTime(value: string | Date | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return 'Not set';
   const then = new Date(value).getTime();
-  if (Number.isNaN(then)) return '—';
+  if (Number.isNaN(then)) return 'Not set';
   const diff = then - Date.now();
   const abs = Math.abs(diff);
   const units: [number, Intl.RelativeTimeFormatUnit][] = [

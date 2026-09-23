@@ -182,11 +182,11 @@ export const templates = {
     submittedAt: string;
     link: string;
   }) => ({
-    subject: `Submission received — ${o.reference}`,
+    subject: `Submission received: ${o.reference}`,
     html: layout(
       h1('Your story has been received') +
         p(
-          `Thank you${o.name ? `, ${esc(o.name)}` : ''}. Your entry is now with the Foundation. Please keep the reference below — it identifies your submission in all correspondence.`,
+          `Thank you${o.name ? `, ${esc(o.name)}` : ''}. Your entry is now with the Foundation. Please keep the reference below. It identifies your submission in all correspondence.`,
         ) +
         facts([
           ['Reference', o.reference],
@@ -223,7 +223,7 @@ export const templates = {
     html: layout(
       h1('Your draft is not submitted yet') +
         p(
-          `Hello${o.name ? ` ${esc(o.name)}` : ''} — you have an unfinished entry for <strong>${esc(o.competition)}</strong>. Entries close on ${esc(o.closesAt)} and drafts cannot be submitted after that.`,
+          `Hello${o.name ? ` ${esc(o.name)}` : ''}, you have an unfinished entry for <strong>${esc(o.competition)}</strong>. Entries close on ${esc(o.closesAt)} and drafts cannot be submitted after that.`,
         ) +
         button('Finish my submission', o.link),
       `${o.competition} closes ${o.closesAt}.`,
@@ -267,11 +267,11 @@ export const templates = {
   shortlistDecision: (o: { name: string; title: string; selected: boolean; note: string; link: string }) => ({
     subject: o.selected ? 'Your story has been shortlisted' : 'Outcome of your DPGLF submission',
     html: layout(
-      h1(o.selected ? 'Congratulations — you have been shortlisted' : 'Thank you for your submission') +
+      h1(o.selected ? 'Congratulations, you have been shortlisted' : 'Thank you for your submission') +
         p(
           o.selected
             ? `Hello${o.name ? ` ${esc(o.name)}` : ''}, <strong>${esc(o.title)}</strong> has been shortlisted. The next stage is mentorship, where you will work with an established writer or editor on your story.`
-            : `Hello${o.name ? ` ${esc(o.name)}` : ''}, <strong>${esc(o.title)}</strong> has not been selected this time. Judging was close and we hope you will enter again — every entry is read in full.`,
+            : `Hello${o.name ? ` ${esc(o.name)}` : ''}, <strong>${esc(o.title)}</strong> has not been selected this time. Judging was close and we hope you will enter again. Every entry is read in full.`,
         ) +
         (o.note ? p(esc(o.note)) : '') +
         button('View my submission', o.link),
@@ -284,7 +284,7 @@ export const templates = {
     html: layout(
       h1('Your mentorship has started') +
         p(
-          `Hello${o.recipient ? ` ${esc(o.recipient)}` : ''} — <strong>${esc(o.writer)}</strong> has been paired with <strong>${esc(o.mentor)}</strong> to develop <em>${esc(o.title)}</em>.`,
+          `Hello${o.recipient ? ` ${esc(o.recipient)}` : ''}, <strong>${esc(o.writer)}</strong> has been paired with <strong>${esc(o.mentor)}</strong> to develop <em>${esc(o.title)}</em>.`,
         ) +
         p(
           'Work happens in the platform: revisions are uploaded as new versions and feedback stays on the story so nothing is lost between drafts.',
@@ -295,7 +295,7 @@ export const templates = {
   }),
 
   revisionRequested: (o: { name: string; title: string; note: string; link: string }) => ({
-    subject: `Revision requested — ${o.title}`,
+    subject: `Revision requested: ${o.title}`,
     html: layout(
       h1('Your mentor has requested a revision') +
         p(`Hello${o.name ? ` ${esc(o.name)}` : ''}, there is new feedback on <strong>${esc(o.title)}</strong>.`) +

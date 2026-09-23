@@ -18,22 +18,19 @@ import {
  * it. Cookies cannot be written during a server-component render, so the
  * rotation happens here, on the way into the authenticated surfaces.
  *
- * Rotation is single-use by design (the revoke is the guard), so it only runs
- * for document navigations: the fresh cookies from the first response cover the
- * page's follow-up requests, and two racing rotations cannot both win.
+ * It runs for every kind of request (page loads, in-app navigations, which are
+ * RSC fetches, prefetches, server-action posts): after fifteen idle minutes the
+ * next click is usually a client-side navigation, and skipping those sent people
+ * to the sign-in page despite a valid 30-day session. Requests that lose the
+ * single-use rotation race are carried by the grace window in
+ * `rotateRefreshToken`.
  */
 export async function proxy(req: NextRequest) {
   const access = req.cookies.get(ACCESS_COOKIE)?.value;
   if (access && (await verifyAccessToken(access))) return NextResponse.next();
 
   const refresh = req.cookies.get(REFRESH_COOKIE)?.value;
-  // Document navigations and server-action POSTs are both single user-intent
-  // requests; a form submitted after the access token lapsed must succeed, not
-  // bounce with "please sign in again". Prefetch/RSC requests are excluded so
-  // parallel fetches cannot race the single-use rotation.
-  const isDocument = req.headers.get('accept')?.includes('text/html') ?? false;
-  const isServerAction = req.method === 'POST' && req.headers.has('next-action');
-  if (!refresh || !(isDocument || isServerAction)) return NextResponse.next();
+  if (!refresh) return NextResponse.next();
 
   try {
     const rotated = await rotateRefreshToken(refresh);

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/dashboard/Shell';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
-import { Badge, ButtonLink, Card, DescList, Panel } from '@/components/ui';
+import { Badge, ButtonAnchor, Card, DescList, Panel } from '@/components/ui';
 import { requireStaff } from '@/lib/permissions';
 import { formatBytes, formatDate, formatDateTime, formatNumber } from '@/lib/format';
 import { allowedTransitions } from '@/lib/workflow';
@@ -58,7 +58,7 @@ export default async function AdminSubmissionPage({ params }: { params: Promise<
                 ['Writer', `${submission.writer_name} <${submission.writer_email}>`],
                 ['Age band', submission.age_band?.replace(/_/g, '–') ?? 'Not recorded'],
                 ['Language', submission.language],
-                ['Genre', submission.genre ?? '—'],
+                ['Genre', submission.genre ?? 'Not specified'],
                 ['Words', submission.word_count ? formatNumber(submission.word_count) : 'Not counted'],
                 [
                   'Length allowed',
@@ -114,7 +114,7 @@ export default async function AdminSubmissionPage({ params }: { params: Promise<
                   <li key={v.id} className="flex flex-wrap items-center gap-3 py-3">
                     <Badge tone={v.version_number === 1 ? 'gold' : 'neutral'}>v{v.version_number}</Badge>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-forest-900">{v.file_name ?? '—'}</p>
+                      <p className="truncate text-sm font-medium text-forest-900">{v.file_name ?? 'Untitled file'}</p>
                       <p className="text-xs text-muted">
                         {[formatBytes(v.file_size), v.word_count ? `${formatNumber(v.word_count)} words` : null, formatDate(v.created_at)]
                           .filter(Boolean)
@@ -122,9 +122,9 @@ export default async function AdminSubmissionPage({ params }: { params: Promise<
                       </p>
                     </div>
                     {v.file_id && (
-                      <ButtonLink href={`/api/files/${v.file_id}`} variant="outline" size="sm">
+                      <ButtonAnchor href={`/api/files/${v.file_id}`} variant="outline" size="sm">
                         Download
-                      </ButtonLink>
+                      </ButtonAnchor>
                     )}
                   </li>
                 ))}
@@ -151,7 +151,7 @@ export default async function AdminSubmissionPage({ params }: { params: Promise<
                         </Badge>
                       )}
                       {r.recommendation && <Badge>{r.recommendation}</Badge>}
-                      {r.locked_at && r.review_id && (
+                      {r.locked_at && r.review_id && r.status !== 'revoked' && r.status !== 'declined' && (
                         <span className="ml-auto">
                           <UnlockReviewForm reviewId={r.review_id} />
                         </span>
@@ -244,7 +244,7 @@ export default async function AdminSubmissionPage({ params }: { params: Promise<
           <Card className="p-5">
             <h2 className="font-display text-base font-semibold text-forest-900">Reopen for editing</h2>
             <p className="mt-1.5 text-[13px] text-muted">
-              Lets the writer change a closed entry — for a genuine mistake, or a deadline problem
+              Lets the writer change a closed entry, for a genuine mistake or a deadline problem
               that was not theirs.
             </p>
             <div className="mt-4">

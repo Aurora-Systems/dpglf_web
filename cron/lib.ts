@@ -94,3 +94,12 @@ export function timingSafeEqual(a: string, b: string): boolean {
   }
   return diff === 0;
 }
+
+/**
+ * True when the platform stopped early to stay inside its function time budget
+ * and has more work queued (`"more": true` in the report).
+ */
+export function hasMore(body: unknown): boolean {
+  return typeof body === 'object' && body !== null && !Array.isArray(body) &&
+    (body as Record<string, unknown>).more === true;
+}

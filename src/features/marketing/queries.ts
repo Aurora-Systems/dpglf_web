@@ -148,16 +148,21 @@ export interface NewsCard {
   excerpt: string;
   published_at: string | null;
   tags: string[];
+  /** R2 key of the post's picture, served through /media; null when it has none. */
+  cover_key: string | null;
+  cover_alt: string;
 }
 
 export async function latestNews(limit = 3): Promise<NewsCard[]> {
   return safe(
     () =>
       query<NewsCard>(
-        `SELECT id, slug, title, excerpt, published_at, tags
-           FROM news_posts
-          WHERE status = 'published' AND published_at <= now()
-          ORDER BY published_at DESC
+        `SELECT n.id, n.slug, n.title, n.excerpt, n.published_at, n.tags,
+                f.storage_key AS cover_key, n.cover_alt
+           FROM news_posts n
+           LEFT JOIN files f ON f.id = n.cover_file_id
+          WHERE n.status = 'published' AND n.published_at <= now()
+          ORDER BY n.published_at DESC
           LIMIT $1`,
         [limit],
       ),
@@ -271,10 +276,14 @@ export async function newsBySlug(slug: string) {
         tags: string[];
         published_at: string | null;
         author_name: string | null;
+        cover_key: string | null;
+        cover_alt: string;
       }>(
-        `SELECT n.id, n.slug, n.title, n.excerpt, n.body_html, n.tags, n.published_at, u.name AS author_name
+        `SELECT n.id, n.slug, n.title, n.excerpt, n.body_html, n.tags, n.published_at, u.name AS author_name,
+                f.storage_key AS cover_key, n.cover_alt
            FROM news_posts n
            LEFT JOIN users u ON u.id = n.author_id
+           LEFT JOIN files f ON f.id = n.cover_file_id
           WHERE n.slug = $1 AND n.status = 'published' AND n.published_at <= now()`,
         [slug],
       ),
@@ -286,10 +295,12 @@ export async function allNews(limit = 40) {
   return safe(
     () =>
       query<NewsCard>(
-        `SELECT id, slug, title, excerpt, published_at, tags
-           FROM news_posts
-          WHERE status = 'published' AND published_at <= now()
-          ORDER BY published_at DESC
+        `SELECT n.id, n.slug, n.title, n.excerpt, n.published_at, n.tags,
+                f.storage_key AS cover_key, n.cover_alt
+           FROM news_posts n
+           LEFT JOIN files f ON f.id = n.cover_file_id
+          WHERE n.status = 'published' AND n.published_at <= now()
+          ORDER BY n.published_at DESC
           LIMIT $1`,
         [limit],
       ),

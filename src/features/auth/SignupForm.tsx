@@ -80,7 +80,7 @@ export function SignupForm() {
       {isMinor && (
         <Alert tone="info" title="You will need a parent or guardian">
           Because you are under eighteen, a parent or guardian has to give consent before your entry
-          can be judged. We ask for their details during the submission — not now.
+          can be judged. We ask for their details during the submission, not now.
         </Alert>
       )}
 

@@ -82,7 +82,7 @@ export default async function AdminAuditPage({
                       {e.entity_id && <p className="font-mono text-[10px]">{e.entity_id.slice(0, 8)}</p>}
                     </Td>
                     <Td className="max-w-xs text-[12px] break-words text-muted">
-                      {Object.keys(e.metadata ?? {}).length > 0 ? JSON.stringify(e.metadata) : '—'}
+                      {Object.keys(e.metadata ?? {}).length > 0 ? JSON.stringify(e.metadata) : 'None'}
                     </Td>
                   </tr>
                 ))}

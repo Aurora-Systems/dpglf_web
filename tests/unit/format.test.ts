@@ -3,8 +3,11 @@ import {
   countWords,
   deadlineLabel,
   formatBytes,
+  formatDate,
+  formatDateTime,
   initials,
   slugify,
+  toFoundationInput,
   truncate,
 } from '@/lib/format';
 
@@ -49,5 +52,20 @@ describe('display helpers', () => {
     expect(formatBytes(0)).toBe('0 KB');
     expect(formatBytes(1536)).toBe('2 KB');
     expect(formatBytes(1.5 * 1024 * 1024)).toBe('1.5 MB');
+  });
+});
+
+describe('Foundation time', () => {
+  it('shows deadlines in Harare time, not the server’s zone', () => {
+    expect(formatDateTime('2026-09-27T21:59:00Z')).toBe('27 Sept 2026, 23:59 CAT');
+    // 23:00 UTC on the 27th is already the 28th in Harare.
+    expect(formatDate('2026-09-27T23:00:00Z')).toBe('28 September 2026');
+  });
+
+  it('round-trips a datetime-local value in Harare wall-clock time', () => {
+    expect(toFoundationInput('2026-09-27T21:59:00Z')).toBe('2026-09-27T23:59');
+    expect(toFoundationInput('2026-01-01T00:30:00Z')).toBe('2026-01-01T02:30');
+    expect(toFoundationInput(null)).toBe('');
+    expect(toFoundationInput('garbage')).toBe('');
   });
 });

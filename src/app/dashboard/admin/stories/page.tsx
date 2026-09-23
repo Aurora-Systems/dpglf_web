@@ -82,7 +82,7 @@ export default async function AdminStoriesPage() {
                         )}
                       </span>
                     </Td>
-                    <Td className="text-xs text-muted">{formatDate(s.published_at)}</Td>
+                    <Td className="text-xs text-muted">{s.published_at ? formatDate(s.published_at) : 'Not yet'}</Td>
                   </tr>
                 ))}
               </tbody>

@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects } from '@std/assert';
-import { isRetryable, runMaintenance, taskErrors, timingSafeEqual } from './lib.ts';
+import { hasMore, isRetryable, runMaintenance, taskErrors, timingSafeEqual } from './lib.ts';
 
 /** A fetch stand-in that records the request and replies with a fixed response. */
 function stubFetch(status: number, body: string) {
@@ -69,4 +69,12 @@ Deno.test('compares bearer tokens exactly, whatever their lengths', () => {
   assert(!timingSafeEqual('Bearer abc', 'Bearer abd'));
   assert(!timingSafeEqual('Bearer abc', 'Bearer abcd'));
   assert(!timingSafeEqual('', 'Bearer abc'));
+});
+
+Deno.test('calls again only when the platform says it stopped early', () => {
+  assert(hasMore({ ok: true, more: true }));
+  assert(!hasMore({ ok: true, more: false }));
+  assert(!hasMore({ ok: true }));
+  assert(!hasMore('more'));
+  assert(!hasMore(null));
 });

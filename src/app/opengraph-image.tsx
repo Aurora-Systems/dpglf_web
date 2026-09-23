@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 import { SITE } from '@/lib/brand';
 import { getObjectBuffer } from '@/lib/r2';
 
-export const alt = `${SITE.name} — ${SITE.tagline}`;
+export const alt = `${SITE.name} · ${SITE.tagline}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 

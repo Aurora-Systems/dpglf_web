@@ -91,7 +91,7 @@ export default async function AdminCompetitionPage({
                       {row.completed}/{row.assigned}
                       {row.conflicts > 0 && <span className="text-clay"> · {row.conflicts} conflict</span>}
                     </Td>
-                    <Td className="font-medium text-forest-900">{row.average_score ?? '—'}</Td>
+                    <Td className="font-medium text-forest-900">{row.average_score ?? 'Not scored'}</Td>
                     <Td>
                       <span className="flex flex-wrap gap-1">
                         {row.recommendations.map((r, i) => (

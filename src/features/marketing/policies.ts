@@ -51,7 +51,7 @@ export const POLICY_STUBS: PolicyStub[] = [
     summary: 'What you are agreeing to when you enter a competition.',
     interim: [
       'Your story must be your own original work. You must own the copyright in it, and have permission for anything in it that is not yours.',
-      'Accepted formats are .docx, PDF, RTF and plain text, up to 10 MB. Word limits are set per competition and are checked from the text of your file.',
+      'Accepted formats are .docx, PDF, RTF and plain text, up to 4 MB. Word limits are set per competition and are checked from the text of your file.',
       'A submission cannot be edited after the competition deadline unless a programme administrator reopens it for you.',
       'Each submission receives a permanent reference number. Quote it in any correspondence about your entry.',
       'The original file you submit is never overwritten. Revisions made during mentorship are stored as new versions alongside it.',
@@ -65,7 +65,7 @@ export const POLICY_STUBS: PolicyStub[] = [
     summary: 'Who owns your story, and what rights the Foundation may hold.',
     interim: [
       'You retain copyright in your story. Entering a competition does not transfer ownership.',
-      'Where the Foundation publishes a story — for example in a Perspectives anthology — the licence that permits that publication is recorded separately and shared with you before publication.',
+      'Where the Foundation publishes a story (for example, in a Perspectives anthology), the licence that permits that publication is recorded separately and shared with you before publication.',
       'Rights status never changes simply because a story has been published. Publication and licensing are tracked as distinct records.',
       'Adaptation interest from publishers or producers arrives as an enquiry. Nothing is licensed or optioned without a separate agreement.',
       'Authors whose work enters an adaptation or licensing agreement receive royalties and revenue participation on terms set out in that agreement.',

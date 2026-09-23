@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/dashboard/Shell';
-import { Alert, Badge, ButtonLink, Card, DescList, Panel } from '@/components/ui';
+import { Alert, Badge, ButtonAnchor, Card, DescList, Panel } from '@/components/ui';
 import { requireRole } from '@/lib/permissions';
 import { formatDate, formatNumber } from '@/lib/format';
 import {
@@ -61,7 +61,7 @@ export default async function JudgeAssignmentPage({
               rows={[
                 ...(blind ? [] : ([['Title', assignment.title]] as [string, React.ReactNode][])),
                 ['Language', assignment.language],
-                ['Genre', assignment.genre ?? '—'],
+                ['Genre', assignment.genre ?? 'Not specified'],
                 ['Length', assignment.word_count ? `${formatNumber(assignment.word_count)} words` : 'Not counted'],
                 [
                   'Themes',
@@ -72,7 +72,7 @@ export default async function JudgeAssignmentPage({
                       ))}
                     </span>
                   ) : (
-                    '—'
+                    'None'
                   ),
                 ],
               ]}
@@ -84,9 +84,9 @@ export default async function JudgeAssignmentPage({
               </p>
             </div>
             {assignment.file_id && (
-              <ButtonLink href={`/api/files/${assignment.file_id}`} className="mt-5">
+              <ButtonAnchor href={`/api/files/${assignment.file_id}`} className="mt-5">
                 Download the manuscript
-              </ButtonLink>
+              </ButtonAnchor>
             )}
           </Panel>
 
@@ -121,7 +121,7 @@ export default async function JudgeAssignmentPage({
             <ul className="mt-2 space-y-2 text-[13px] leading-relaxed text-muted">
               <li>Score against the rubric, not against the rest of the field.</li>
               <li>Comment on the writing, not the writer.</li>
-              <li>These are young writers — be honest, and be kind.</li>
+              <li>These are young writers. Be honest, and be kind.</li>
               <li>Declare a conflict rather than scoring an entry you recognise.</li>
             </ul>
           </Card>

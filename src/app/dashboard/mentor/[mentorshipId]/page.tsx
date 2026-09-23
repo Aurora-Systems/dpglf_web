@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/dashboard/Shell';
-import { Badge, ButtonLink, Card, DescList, Panel, cx } from '@/components/ui';
+import { Badge, ButtonAnchor, Card, DescList, Panel, cx } from '@/components/ui';
 import { requireUser, submissionAccess, isStaff } from '@/lib/permissions';
 import { formatBytes, formatDate, formatDateTime, formatNumber } from '@/lib/format';
 import { allowedTransitions } from '@/lib/workflow';
@@ -99,9 +99,9 @@ export default async function MentorshipPage({
                       {v.change_note && <p className="mt-0.5 text-[13px] text-muted">{v.change_note}</p>}
                     </div>
                     {v.file_id && access?.readManuscript && (
-                      <ButtonLink href={`/api/files/${v.file_id}`} variant="outline" size="sm">
+                      <ButtonAnchor href={`/api/files/${v.file_id}`} variant="outline" size="sm">
                         Download
-                      </ButtonLink>
+                      </ButtonAnchor>
                     )}
                   </li>
                 ))}

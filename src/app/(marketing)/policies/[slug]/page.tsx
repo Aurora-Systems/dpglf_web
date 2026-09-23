@@ -35,7 +35,7 @@ export default async function PolicyPage({ params }: Props) {
       <p className="mt-3 text-xs text-muted">
         {page
           ? `Version ${page.version} · last updated ${formatDate(page.updated_at)}`
-          : 'Interim description — pending Foundation approval'}
+          : 'Interim description, pending Foundation approval'}
       </p>
       <div className="rule-diamond my-10" aria-hidden />
 

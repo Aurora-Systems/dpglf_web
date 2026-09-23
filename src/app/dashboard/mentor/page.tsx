@@ -66,7 +66,7 @@ export default async function MentorPage() {
                 {past.map((m) => (
                   <li key={m.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
                     <Link href={`/dashboard/mentor/${m.id}`} className="flex-1 font-medium text-forest-900">
-                      {m.writer_name} — {m.title || 'Untitled'}
+                      {m.writer_name} · {m.title || 'Untitled'}
                     </Link>
                     <span className="text-xs text-muted">
                       {m.ended_at ? `Ended ${formatDate(m.ended_at)}` : m.status}

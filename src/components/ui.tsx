@@ -13,13 +13,18 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 
 // ---- buttons ------------------------------------------------------------------
 
-type Variant = 'primary' | 'gold' | 'outline' | 'ghost' | 'danger';
+type Variant = 'primary' | 'gold' | 'outline' | 'inverse' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
 
+// Colours belong in a variant, not in `className`: Tailwind resolves two text
+// colours by stylesheet order rather than class order, so an override passed in
+// alongside a variant's colour may silently lose.
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-forest-900 text-bone hover:bg-forest-700 border border-forest-900',
   gold: 'bg-gold-500 text-forest-950 hover:bg-gold-400 border border-gold-500 font-semibold',
   outline: 'border border-forest-900/25 text-forest-900 hover:border-forest-900 hover:bg-forest-900/5',
+  /** Outline for dark (forest) grounds. */
+  inverse: 'border border-bone/25 text-bone hover:border-bone/60 hover:bg-white/6',
   ghost: 'text-forest-700 hover:bg-forest-900/6',
   danger: 'border border-red-700/30 text-red-800 hover:bg-red-50',
 };
@@ -48,6 +53,20 @@ export function Button({
   return <button {...props} className={buttonClass(variant, size, className)} />;
 }
 
+/**
+ * A file download styled as a button. A plain `<a>`, not `next/link`: the router
+ * would prefetch the URL and send the click through a client-side fetch, and
+ * each of those hits the permission-checked file gate as if it were a download.
+ */
+export function ButtonAnchor({
+  variant = 'primary',
+  size = 'md',
+  className,
+  ...props
+}: ComponentProps<'a'> & { variant?: Variant; size?: Size }) {
+  return <a {...props} className={buttonClass(variant, size, className)} />;
+}
+
 export function ButtonLink({
   variant = 'primary',
   size = 'md',
@@ -59,11 +78,21 @@ export function ButtonLink({
 
 // ---- surfaces -------------------------------------------------------------------
 
+/** A width, style or side token (`border-2`, `border-dashed`, `border-t`), not a colour. */
+const BORDER_SHAPE = /^border-(?:\d|[xytrblse](?:-|$)|dashed|dotted|solid|double|none|hidden)/;
+
 export function Card({ className, ...props }: ComponentProps<'div'>) {
+  // A caller's own background or border colour replaces the default rather than
+  // sitting next to it: two utilities for the same property resolve by
+  // stylesheet order, so `bg-forest-900` beside `bg-white` would lose. Only
+  // unprefixed tokens count; `hover:border-gold-500` is an addition.
+  const tokens = className?.split(/\s+/) ?? [];
+  const ownBg = tokens.some((t) => t.startsWith('bg-'));
+  const ownBorder = tokens.some((t) => t.startsWith('border-') && !BORDER_SHAPE.test(t));
   return (
     <div
       {...props}
-      className={cx('rounded-xl border border-line bg-white', className)}
+      className={cx('rounded-xl border', !ownBorder && 'border-line', !ownBg && 'bg-white', className)}
     />
   );
 }

@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/dashboard/Shell';
 import { Alert, Badge, Panel, Table, Td, Th } from '@/components/ui';
 import { requireStaff } from '@/lib/permissions';
 import { formatDate } from '@/lib/format';
+import { publicUrl } from '@/lib/r2';
 import { POLICY_STUBS } from '@/features/marketing/policies';
 import { adminNews, adminPages } from '@/features/admin/queries';
 import { NewsForm, PageForm } from '@/features/admin/Forms';
@@ -25,7 +26,7 @@ export default async function AdminContentPage() {
         {missingPolicies.length > 0 && (
           <Alert tone="warning" title={`${missingPolicies.length} policies not yet adopted`}>
             <p>
-              {missingPolicies.map((p) => p.title).join(', ')} — the public pages currently show an
+              {missingPolicies.map((p) => p.title).join(', ')}. The public pages currently show an
               interim description of what the platform does. Publish the approved wording below.
             </p>
           </Alert>
@@ -82,10 +83,29 @@ export default async function AdminContentPage() {
                 {news.map((n) => (
                   <tr key={n.id}>
                     <Td>
-                      <Link href={`/news/${n.slug}`} className="font-medium text-forest-900 hover:text-gold-700">
-                        {n.title}
-                      </Link>
-                      <p className="text-xs text-muted">{n.excerpt}</p>
+                      <div className="flex items-start gap-3">
+                        {n.cover_key ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- same-origin /media proxy
+                          <img
+                            src={publicUrl(n.cover_key)}
+                            alt=""
+                            className="aspect-[16/9] w-20 shrink-0 rounded border border-line object-cover"
+                          />
+                        ) : (
+                          <span className="grid aspect-[16/9] w-20 shrink-0 place-items-center rounded border border-dashed border-line text-[10px] text-muted">
+                            No picture
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <Link
+                            href={`/dashboard/admin/content/news/${n.id}`}
+                            className="font-medium text-forest-900 hover:text-gold-700"
+                          >
+                            {n.title}
+                          </Link>
+                          <p className="text-xs text-muted">{n.excerpt}</p>
+                        </div>
+                      </div>
                     </Td>
                     <Td>
                       <Badge tone={n.status === 'published' ? 'good' : 'neutral'}>{n.status}</Badge>
@@ -97,6 +117,7 @@ export default async function AdminContentPage() {
             </Table>
           )}
           <div className="border-t border-line pt-5">
+            <h3 className="font-display mb-4 text-base font-semibold text-forest-900">Write a new post</h3>
             <NewsForm />
           </div>
         </Panel>

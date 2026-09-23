@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MINOR_BANDS, submissionBlockers, type BlockerInput } from '@/features/submissions/rules';
+import { MINOR_BANDS, submissionBlockers, withinAgeLimits, type BlockerInput } from '@/features/submissions/rules';
 
 const FUTURE = new Date(Date.now() + 86_400_000).toISOString();
 const PAST = new Date(Date.now() - 86_400_000).toISOString();
@@ -51,5 +51,40 @@ describe('submissionBlockers', () => {
 
   it('agrees with the signup form about who counts as a minor', () => {
     expect([...MINOR_BANDS].sort()).toEqual(['13_15', '16_17', 'under_13']);
+  });
+});
+
+describe('withinAgeLimits', () => {
+  const band = (ageBand: string | null) => ({ age: null, ageBand });
+
+  it('keeps adults out of an under-18 competition', () => {
+    expect(withinAgeLimits(band('16_17'), null, 17)).toBe(true);
+    expect(withinAgeLimits(band('under_13'), null, 17)).toBe(true);
+    expect(withinAgeLimits(band('18_24'), null, 17)).toBe(false);
+    expect(withinAgeLimits(band('25_plus'), null, 17)).toBe(false);
+  });
+
+  it('lets a band that straddles a limit through to the eligibility review', () => {
+    expect(withinAgeLimits(band('13_15'), 14, 17)).toBe(true);
+    expect(withinAgeLimits(band('under_13'), 13, 17)).toBe(false);
+  });
+
+  it('decides on an exact age when there is one', () => {
+    expect(withinAgeLimits({ age: 17, ageBand: '16_17' }, null, 17)).toBe(true);
+    expect(withinAgeLimits({ age: 18, ageBand: '16_17' }, null, 17)).toBe(false);
+    expect(withinAgeLimits({ age: 12, ageBand: null }, 13, null)).toBe(false);
+  });
+
+  it('allows for the years since a band was recorded, on the lower limit only', () => {
+    // Signed up at 16–17 a year ago: may be 18 now.
+    expect(withinAgeLimits({ age: null, ageBand: '16_17', drift: 1 }, 18, null)).toBe(true);
+    expect(withinAgeLimits({ age: null, ageBand: '16_17', drift: 0 }, 18, null)).toBe(false);
+    // Ageing never lets an adult band into an under-18 competition.
+    expect(withinAgeLimits({ age: null, ageBand: '18_24', drift: 3 }, null, 17)).toBe(false);
+  });
+
+  it('leaves unknown ages and unlimited competitions to the review', () => {
+    expect(withinAgeLimits(band(null), null, 17)).toBe(true);
+    expect(withinAgeLimits(band('25_plus'), null, null)).toBe(true);
   });
 });

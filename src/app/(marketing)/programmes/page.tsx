@@ -26,8 +26,8 @@ export default async function ProgrammesPage() {
         Ways into the ecosystem
       </h1>
       <p className="mt-5 max-w-2xl text-[17px] leading-relaxed text-muted">
-        Competitions are how most writers first meet the Foundation. Everything that follows —
-        mentorship, editorial, publication and the archive — flows from an entry.
+        Competitions are how most writers first meet the Foundation. Everything that follows
+        (mentorship, editorial, publication and the archive) flows from an entry.
       </p>
 
       {competitions.length > 0 ? (
@@ -88,7 +88,7 @@ export default async function ProgrammesPage() {
           },
           {
             title: 'Perspectives',
-            body: 'The annual anthology — twenty writers, one book, one campaign.',
+            body: 'The annual anthology: twenty writers, one book, one campaign.',
             href: '/perspectives',
           },
           {

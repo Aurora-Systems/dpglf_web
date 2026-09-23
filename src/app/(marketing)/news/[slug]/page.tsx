@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui';
 import { formatDate } from '@/lib/format';
 import { newsBySlug } from '@/features/marketing/queries';
+import { publicUrl } from '@/lib/r2';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -11,10 +12,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const post = await newsBySlug(slug);
   if (!post) return {};
+  // The picture doubles as the link preview on WhatsApp, Facebook and the like.
+  const image = post.cover_key ? [{ url: publicUrl(post.cover_key), alt: post.cover_alt || post.title }] : undefined;
   return {
     title: post.title,
     description: post.excerpt,
-    openGraph: { title: post.title, description: post.excerpt, type: 'article' },
+    openGraph: { title: post.title, description: post.excerpt, type: 'article', images: image },
+    twitter: image ? { card: 'summary_large_image', images: image } : undefined,
   };
 }
 
@@ -33,6 +37,14 @@ export default async function NewsPostPage({ params }: Props) {
         {post.title}
       </h1>
       {post.excerpt && <p className="mt-5 text-lg leading-relaxed text-muted">{post.excerpt}</p>}
+      {post.cover_key && (
+        // eslint-disable-next-line @next/next/no-img-element -- same-origin /media proxy
+        <img
+          src={publicUrl(post.cover_key)}
+          alt={post.cover_alt}
+          className="mt-8 w-full rounded-xl border border-line object-cover"
+        />
+      )}
       {post.tags.length > 0 && (
         <div className="mt-6 flex flex-wrap gap-1.5">
           {post.tags.map((t) => (

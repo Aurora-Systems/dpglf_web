@@ -8,7 +8,7 @@ import { featuredStories } from '@/features/marketing/queries';
 export const metadata: Metadata = {
   title: 'Perspectives',
   description:
-    'Perspectives: A Collection of Short Stories — the Foundation’s annual anthology, promoting twenty emerging writers alongside established African authors.',
+    'Perspectives: A Collection of Short Stories is the Foundation’s annual anthology, promoting twenty emerging writers alongside established African authors.',
 };
 
 const CONTRIBUTORS = [
@@ -42,9 +42,8 @@ export default async function PerspectivesPage() {
               </ButtonLink>
               <ButtonLink
                 href="/contact?topic=partnership"
-                variant="ghost"
+                variant="inverse"
                 size="lg"
-                className="border border-bone/25 text-bone hover:border-bone/60 hover:bg-white/6"
               >
                 Register publishing interest
               </ButtonLink>
@@ -132,7 +131,7 @@ export default async function PerspectivesPage() {
             <p className="mt-6 leading-relaxed text-muted">
               English is the initial publication language. As the archive grows, the Perspectives
               Africa Languages Programme will accept and preserve stories in their original
-              languages — contributing to language preservation as well as literary development.
+              languages, contributing to language preservation as well as literary development.
             </p>
           </div>
           <div className="flex flex-wrap content-start gap-2.5">

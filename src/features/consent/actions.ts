@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { audit } from '@/lib/audit';
 import { clientIp } from '@/lib/auth';
 import { sha256Hex } from '@/lib/crypto';
-import { query, queryOne } from '@/lib/db';
+import { query, queryOne, tx } from '@/lib/db';
+import type { SubmissionStatus } from '@/lib/workflow';
 import { fail, ok, str, type ActionState } from '@/lib/actions';
+import { applyTransition } from '@/features/workflow/transition';
 
 /**
  * Guardian consent.
@@ -30,6 +32,7 @@ export interface ConsentRequest {
   writer_age_band: string | null;
   submission_id: string | null;
   submission_title: string | null;
+  submission_status: string | null;
   competition_name: string | null;
 }
 
@@ -40,7 +43,8 @@ export async function consentByToken(token: string): Promise<ConsentRequest | nu
       `SELECT gc.id, gc.guardian_name, gc.guardian_email, gc.relationship, gc.consent_version,
               gc.status, gc.requested_at, gc.granted_at,
               u.name AS writer_name, p.age_band AS writer_age_band,
-              s.id AS submission_id, s.title AS submission_title, c.name AS competition_name
+              s.id AS submission_id, s.title AS submission_title, s.status AS submission_status,
+              c.name AS competition_name
          FROM guardian_consents gc
          JOIN users u ON u.id = gc.user_id
          LEFT JOIN profiles p ON p.user_id = gc.user_id
@@ -75,26 +79,32 @@ export async function decideConsentAction(_prev: ActionState, form: FormData): P
       [record.id, ip],
     );
   } else {
-    await query(
-      `UPDATE guardian_consents
-          SET status = 'revoked', revoked_at = now(), ip = $2
-        WHERE id = $1`,
-      [record.id, ip],
-    );
-    // Consent is the basis on which a minor's entry is considered. Without it
-    // the entry leaves the pipeline rather than sitting in it unusable.
-    if (record.submission_id) {
-      await query(
-        `UPDATE submissions SET status = 'WITHDRAWN', withdrawn_at = now(), updated_at = now()
-          WHERE id = $1 AND status NOT IN ('PUBLISHED', 'WITHDRAWN')`,
-        [record.submission_id],
+    const submissionId = record.submission_id;
+    await tx(async (q) => {
+      await q(
+        `UPDATE guardian_consents
+            SET status = 'revoked', revoked_at = now(), ip = $2
+          WHERE id = $1`,
+        [record.id, ip],
       );
-      await query(
-        `INSERT INTO submission_events (submission_id, from_status, to_status, note)
-         VALUES ($1, NULL, 'WITHDRAWN', 'Guardian consent declined or withdrawn')`,
-        [record.submission_id],
+      // Consent is the basis on which a minor's entry is considered. Without it
+      // the entry leaves the pipeline rather than sitting in it unusable. This
+      // applies at any stage short of publication, so it is a system move and
+      // deliberately not limited to the stages a writer may withdraw from.
+      if (!submissionId) return;
+      const [current] = await q<{ status: SubmissionStatus }>(
+        `SELECT status FROM submissions WHERE id = $1 FOR UPDATE`,
+        [submissionId],
       );
-    }
+      if (!current || current.status === 'PUBLISHED' || current.status === 'WITHDRAWN') return;
+      await applyTransition(q, {
+        submissionId,
+        from: current.status,
+        to: 'WITHDRAWN',
+        actorId: null,
+        note: 'Guardian consent declined or withdrawn',
+      });
+    });
   }
 
   await audit({
@@ -108,7 +118,9 @@ export async function decideConsentAction(_prev: ActionState, form: FormData): P
   revalidatePath('/consent');
   return ok(
     decision === 'grant'
-      ? 'Thank you. Consent has been recorded and the entry can now be considered.'
+      ? record.submission_status === 'WITHDRAWN'
+        ? 'Thank you. Consent has been recorded. The entry was withdrawn earlier, so the writer will need to contact the Foundation to have it restored.'
+        : 'Thank you. Consent has been recorded and the entry can now be considered.'
       : 'Consent has been declined. The entry has been withdrawn and will not be judged.',
   );
 }

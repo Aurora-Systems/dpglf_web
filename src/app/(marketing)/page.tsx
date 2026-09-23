@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { IntroVideo } from '@/components/client';
+import { NewsPicture } from '@/components/site/NewsPicture';
 import { StoryCard } from '@/components/site/StoryCard';
 import { Badge, ButtonLink, Card, Eyebrow, RuleDiamond, SectionHeading, Stat } from '@/components/ui';
 import { BRAND, SITE, STAGES } from '@/lib/brand';
@@ -46,18 +47,13 @@ export default async function HomePage() {
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-bone/75">
               The Dr. Phillip Gwatidzo Literary Foundation discovers young African storytellers,
               mentors them to a professional standard, publishes their work, preserves it in a
-              permanent archive — and opens the way to screen and licensing.
+              permanent archive, and opens the way to screen and licensing.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <ButtonLink href="/submit" variant="gold" size="lg">
                 Submit a story
               </ButtonLink>
-              <ButtonLink
-                href="/archive"
-                size="lg"
-                className="border border-bone/25 text-bone hover:border-bone/60 hover:bg-white/6"
-                variant="ghost"
-              >
+              <ButtonLink href="/archive" size="lg" variant="inverse">
                 Explore the archive
               </ButtonLink>
             </div>
@@ -102,7 +98,7 @@ export default async function HomePage() {
                 <div>
                   <p className="text-sm font-semibold text-bone">Dr. Phillip Tinashe Gwatidzo</p>
                   <p className="mt-1 text-[13px] leading-relaxed text-bone/60">
-                    Author of <em>Changamire Dombo — The Legend</em>, on Zimbabwe’s A-Level
+                    Author of <em>Changamire Dombo: The Legend</em>, on Zimbabwe’s A-Level
                     Literature curriculum and distributed in more than twenty-five countries.
                   </p>
                 </div>
@@ -155,7 +151,7 @@ export default async function HomePage() {
             tone="dark"
             align="center"
             title="One continuous pathway, six stages"
-            lead="Musicians move from discovery to recording contracts. Athletes move from grassroots competition to professional leagues. Writers deserve the same structured pathway — so we built it."
+            lead="Musicians move from discovery to recording contracts. Athletes move from grassroots competition to professional leagues. Writers deserve the same structured pathway, so we built it."
           />
           <ol className="mt-16 grid gap-px overflow-hidden rounded-2xl bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
             {STAGES.map((stage) => (
@@ -186,7 +182,7 @@ export default async function HomePage() {
             </h2>
             <p className="mt-4 text-[17px] leading-relaxed text-muted">
               {competition?.tagline ||
-                'An annual Afrocentric short story competition for writers under eighteen — opening in Zimbabwe and widening across Africa and the global African diaspora.'}
+                'An annual Afrocentric short story competition for writers under eighteen, opening in Zimbabwe and widening across Africa and the global African diaspora.'}
             </p>
 
             <dl className="mt-8 grid gap-x-8 gap-y-5 sm:grid-cols-2">
@@ -261,7 +257,7 @@ export default async function HomePage() {
             <SectionHeading
               eyebrow="From the archive"
               title="Stories and emerging authors"
-              lead="Every approved story is preserved with the cultural and language metadata that makes it findable — by readers, researchers, publishers and producers."
+              lead="Every approved story is preserved with the cultural and language metadata that makes it findable by readers, researchers, publishers and producers."
             />
             <ButtonLink href="/archive" variant="outline">
               Browse the archive
@@ -298,7 +294,7 @@ export default async function HomePage() {
             </h2>
             <p className="mt-5 text-[17px] leading-relaxed text-bone/75">
               Traditional publishing promotes one author, one book, one campaign. Perspectives
-              promotes twenty authors through one carefully curated anthology — emerging writers
+              promotes twenty authors through one carefully curated anthology: emerging writers
               published alongside established African authors, intellectuals and cultural leaders.
             </p>
             <ul className="mt-8 space-y-3 text-[15px] text-bone/70">
@@ -390,14 +386,21 @@ export default async function HomePage() {
             {news.length > 0 ? (
               <ul className="mt-8 divide-y divide-line">
                 {news.map((post) => (
-                  <li key={post.id} className="py-5 first:pt-0">
-                    <p className="text-xs text-muted">{formatDate(post.published_at)}</p>
-                    <h3 className="font-display mt-1 text-lg font-semibold text-forest-900">
-                      <Link href={`/news/${post.slug}`} className="hover:text-gold-700">
-                        {post.title}
-                      </Link>
-                    </h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-muted">{post.excerpt}</p>
+                  <li key={post.id} className="relative flex gap-4 py-5 first:pt-0">
+                    <NewsPicture
+                      coverKey={post.cover_key}
+                      alt={post.cover_alt}
+                      className="w-28 shrink-0 self-start rounded-md sm:w-36"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted">{formatDate(post.published_at)}</p>
+                      <h3 className="font-display mt-1 text-lg leading-snug font-semibold text-forest-900">
+                        <Link href={`/news/${post.slug}`} className="before:absolute before:inset-0 hover:text-gold-700">
+                          {post.title}
+                        </Link>
+                      </h3>
+                      <p className="mt-1.5 line-clamp-3 text-sm leading-relaxed text-muted">{post.excerpt}</p>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -421,7 +424,7 @@ export default async function HomePage() {
             world.
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-[17px] text-bone/75">
-            Whether you write, teach, publish, produce or fund — there is a place for you in the
+            Whether you write, teach, publish, produce or fund, there is a place for you in the
             ecosystem.
           </p>
           <div className="mt-9 flex flex-wrap justify-center gap-3">
@@ -431,8 +434,7 @@ export default async function HomePage() {
             <ButtonLink
               href="/support"
               size="lg"
-              variant="ghost"
-              className="border border-bone/30 text-bone hover:border-bone/70 hover:bg-white/8"
+              variant="inverse"
             >
               Support {SITE.shortName}
             </ButtonLink>

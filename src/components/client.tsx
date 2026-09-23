@@ -59,8 +59,22 @@ export function FileField({
   label?: string;
 }) {
   const id = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // React resets a form after its action runs, which empties this input. Clear
+  // the label too, so it never claims a file is attached when none is.
+  useEffect(() => {
+    const form = inputRef.current?.form;
+    if (!form) return;
+    const onReset = () => {
+      setPicked(null);
+      setError(null);
+    };
+    form.addEventListener('reset', onReset);
+    return () => form.removeEventListener('reset', onReset);
+  }, []);
 
   return (
     <div className="space-y-2">
@@ -74,6 +88,7 @@ export function FileField({
         </span>
       </label>
       <input
+        ref={inputRef}
         id={id}
         type="file"
         name={name}

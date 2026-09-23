@@ -29,15 +29,11 @@ import {
   updateRolesAction,
 } from './actions';
 import { assignJudgesAction, unlockReviewAction } from '@/features/judging/actions';
+import { toFoundationInput } from '@/lib/format';
 import { reopenSubmissionAction } from '@/features/workflow/actions';
 
-/** Turns a timestamptz into the value an `<input type="datetime-local">` wants. */
-function dtLocal(value: string | null | undefined): string {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-}
+/** A timestamptz as an `<input type="datetime-local">` value, in Harare time wherever this renders. */
+const dtLocal = toFoundationInput;
 
 // ---- competitions ---------------------------------------------------------------
 
@@ -97,13 +93,13 @@ export function CompetitionForm({
       </Field>
 
       <div className="grid gap-5 sm:grid-cols-3">
-        <Field label="Opens" htmlFor="opensAt">
+        <Field label="Opens (Harare time)" htmlFor="opensAt">
           <Input id="opensAt" name="opensAt" type="datetime-local" defaultValue={dtLocal(c?.opens_at)} />
         </Field>
-        <Field label="Closes" htmlFor="closesAt">
+        <Field label="Closes (Harare time)" htmlFor="closesAt">
           <Input id="closesAt" name="closesAt" type="datetime-local" defaultValue={dtLocal(c?.closes_at)} />
         </Field>
-        <Field label="Results" htmlFor="resultsAt">
+        <Field label="Results (Harare time)" htmlFor="resultsAt">
           <Input id="resultsAt" name="resultsAt" type="datetime-local" defaultValue={dtLocal(c?.results_at)} />
         </Field>
       </div>
@@ -251,7 +247,7 @@ export function RubricForm({ competitionId }: { competitionId?: string }) {
 
       <SubmitButton pendingLabel="Saving…">Create rubric</SubmitButton>
       <p className="text-[13px] text-muted">
-        Rubrics are versioned rather than edited — creating a new one leaves historic scores
+        Rubrics are versioned rather than edited, so creating a new one leaves historic scores
         interpretable.
       </p>
     </form>
@@ -294,7 +290,7 @@ export function AssignJudgesForm({
                 key={s.id}
                 name="submissionIds"
                 value={s.id}
-                label={`${s.reference ?? '—'} · ${s.title || 'Untitled'}`}
+                label={`${s.reference ?? 'No reference'} · ${s.title || 'Untitled'}`}
                 hint={s.writer_name}
               />
             ))
@@ -408,7 +404,7 @@ export function CreateStoryForm({
           </option>
           {submissions.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.reference ?? '—'} · {s.title || 'Untitled'} — {s.writer_name}
+              {s.reference ?? 'No reference'} · {s.title || 'Untitled'} · {s.writer_name}
             </option>
           ))}
         </Select>
@@ -617,7 +613,7 @@ export function CoverForm({ storyId, coverUrl }: { storyId: string; coverUrl: st
       <FileField
         name="cover"
         accept="image/jpeg,image/png,image/webp"
-        maxBytes={5 * 1024 * 1024}
+        maxBytes={PICTURE_MAX_BYTES}
         required={!coverUrl}
         label={coverUrl ? 'Replace cover' : 'Choose cover image'}
       />
@@ -625,7 +621,7 @@ export function CoverForm({ storyId, coverUrl }: { storyId: string; coverUrl: st
         {coverUrl ? 'Replace cover' : 'Upload cover'}
       </SubmitButton>
       <p className="text-[12px] text-muted">
-        JPEG, PNG or WebP up to 5 MB. Shown on the public archive card and story page.
+        JPEG, PNG or WebP up to 4 MB. Shown on the public archive card and story page.
       </p>
     </form>
   );
@@ -931,41 +927,100 @@ export function MessageStatusForm({ messageId, status }: { messageId: string; st
 
 // ---- content ------------------------------------------------------------------------------------------
 
+/** Matches IMAGE_MAX_BYTES in lib/files (a server module, so not imported here). */
+const PICTURE_MAX_BYTES = 4 * 1024 * 1024;
+
 export function NewsForm({
   post,
+  notice,
 }: {
-  post?: { id: string; slug: string; title: string; excerpt: string; status: string };
+  /** The outcome of the save that led here (from the URL); hidden once the form is used again. */
+  notice?: string;
+  post?: {
+    id: string;
+    slug: string;
+    title: string;
+    excerpt: string;
+    /** Plain text for an article written without HTML (see htmlToArticle), otherwise HTML. */
+    body: string;
+    tags: string[];
+    status: string;
+    coverUrl: string | null;
+    coverAlt: string;
+  };
 }) {
   const [state, action] = useActionState(saveNewsAction, IDLE);
+  // After a failed save, what was typed (echoed by the action) wins over the
+  // stored post, because React resets the form to its defaults.
+  const typed = (state.ok === false ? state.data : undefined) as Record<string, string> | undefined;
+  const v = (field: string, stored: string | undefined) => typed?.[field] ?? stored;
   return (
     <form action={action} className="space-y-5">
+      {state === IDLE && notice && <Alert tone="success">{notice}</Alert>}
       {state.message && <Alert tone={state.ok ? 'success' : 'error'}>{state.message}</Alert>}
       {post && <input type="hidden" name="id" value={post.id} />}
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Title" htmlFor="newsTitle" required>
-          <Input id="newsTitle" name="title" required maxLength={200} defaultValue={post?.title} />
+          <Input id="newsTitle" name="title" required maxLength={200} defaultValue={v('title', post?.title)} />
         </Field>
-        <Field label="Slug" htmlFor="newsSlug">
-          <Input id="newsSlug" name="slug" maxLength={90} defaultValue={post?.slug} />
+        <Field label="Slug" htmlFor="newsSlug" hint="The web address. Leave empty to make one from the title.">
+          <Input id="newsSlug" name="slug" maxLength={90} defaultValue={v('slug', post?.slug)} />
         </Field>
       </div>
 
-      <Field label="Excerpt" htmlFor="newsExcerpt">
-        <Textarea id="newsExcerpt" name="excerpt" rows={2} maxLength={500} defaultValue={post?.excerpt} />
+      <Field
+        label="Summary"
+        htmlFor="newsExcerpt"
+        hint="One or two sentences. Shown under the picture on the news page and the homepage."
+      >
+        <Textarea id="newsExcerpt" name="excerpt" rows={2} maxLength={500} defaultValue={v('excerpt', post?.excerpt)} />
       </Field>
 
-      <Field label="Body (HTML)" htmlFor="newsBody">
-        <Textarea id="newsBody" name="bodyHtml" rows={10} className="font-mono text-[13px]" />
+      <div className="space-y-3 rounded-lg border border-line p-4">
+        <p className="text-sm font-medium text-forest-900">Picture</p>
+        {post?.coverUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- same-origin /media proxy
+          <img
+            src={post.coverUrl}
+            alt={post.coverAlt || 'Current picture'}
+            className="aspect-[16/9] w-full max-w-md rounded-lg border border-line object-cover"
+          />
+        )}
+        <FileField
+          name="cover"
+          accept="image/jpeg,image/png,image/webp"
+          maxBytes={PICTURE_MAX_BYTES}
+          label={post?.coverUrl ? 'Replace picture' : 'Choose a picture'}
+        />
+        <p className="text-[12px] text-muted">
+          JPEG, PNG or WebP up to 4 MB. Landscape pictures work best: news cards crop to 16:9.
+        </p>
+        <Field
+          label="Picture description"
+          htmlFor="newsCoverAlt"
+          hint="What the picture shows, for readers using screen readers. For example: “Young writers at the 2026 awards evening in Harare.”"
+        >
+          <Input id="newsCoverAlt" name="coverAlt" maxLength={200} defaultValue={v('coverAlt', post?.coverAlt)} />
+        </Field>
+        {post?.coverUrl && <Checkbox name="removeCover" label="Remove the picture from this post" />}
+      </div>
+
+      <Field
+        label="Article"
+        htmlFor="newsBody"
+        hint="Write normally and leave a blank line between paragraphs. If you want headings, links or lists, basic HTML works too."
+      >
+        <Textarea id="newsBody" name="body" rows={16} defaultValue={v('body', post?.body)} />
       </Field>
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Tags" htmlFor="newsTags" hint="Comma separated.">
-          <Input id="newsTags" name="tags" maxLength={300} />
+        <Field label="Tags" htmlFor="newsTags" hint="Comma separated, e.g. Competition, Results.">
+          <Input id="newsTags" name="tags" maxLength={300} defaultValue={v('tags', post?.tags.join(', '))} />
         </Field>
         <Field label="Status" htmlFor="newsStatus">
-          <Select id="newsStatus" name="status" defaultValue={post?.status ?? 'draft'}>
-            <option value="draft">Draft</option>
+          <Select id="newsStatus" name="status" defaultValue={v('status', post?.status) || 'draft'}>
+            <option value="draft">Draft (only staff can see it)</option>
             <option value="published">Published</option>
           </Select>
         </Field>
@@ -1020,7 +1075,7 @@ export function PageForm({
 
       {page && (
         <p className="text-[13px] text-muted">
-          Currently version {page.version}. Saving publishes version {page.version + 1} — earlier
+          Currently version {page.version}. Saving publishes version {page.version + 1}. Earlier
           submissions keep pointing at the version their writer accepted.
         </p>
       )}

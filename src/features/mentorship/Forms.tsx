@@ -75,7 +75,7 @@ export function AssignMentorForm({
           </option>
           {submissions.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.writer_name} — {s.title || 'Untitled'} ({s.competition_name})
+              {s.writer_name} · {s.title || 'Untitled'} ({s.competition_name})
             </option>
           ))}
         </Select>

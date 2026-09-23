@@ -1,3 +1,5 @@
+import { pruneRefreshTokens } from '@/lib/auth';
+import { secretsEqual } from '@/lib/crypto';
 import { query } from '@/lib/db';
 import { abs, templates } from '@/lib/email';
 import { formatDate } from '@/lib/format';
@@ -10,45 +12,67 @@ import { drainEmoworldQueue } from '@/features/emoworld/sync';
  *
  * Authenticated with a shared secret rather than a session, because the caller
  * is a machine. Everything it does is idempotent: deadline reminders dedupe on
- * the notification key, and the Emoworld drain claims rows before sending.
+ * the notification key, and the email retry and Emoworld drain claim rows
+ * before sending.
+ *
+ * The work shares one time budget, kept well inside a serverless function's
+ * timeout: a function killed mid-loop would skip every task after it. When a
+ * task runs out of budget the response says `more: true`, and the scheduler
+ * (cron/ on Deno Deploy) calls again straight away to finish the backlog.
  *
  *   curl -H "Authorization: Bearer $CRON_KEY" https://…/api/cron
  */
+const BUDGET_MS = 7_000;
+
 export async function GET(req: Request) {
   const key = process.env.CRON_KEY;
   if (!key) return Response.json({ error: 'CRON_KEY is not configured' }, { status: 503 });
 
-  const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${key}`) return new Response('Unauthorized', { status: 401 });
+  const auth = req.headers.get('authorization') ?? '';
+  if (!(await secretsEqual(auth, `Bearer ${key}`))) return new Response('Unauthorized', { status: 401 });
 
+  const deadline = Date.now() + BUDGET_MS;
   const results: Record<string, unknown> = {};
+  let more = false;
 
-  try {
-    results.deadlineReminders = await sendDeadlineReminders();
-  } catch (e) {
-    results.deadlineRemindersError = (e as Error).message;
-  }
-
-  try {
-    results.emailRetry = await retryUnsentNotifications();
-  } catch (e) {
-    results.emailRetryError = (e as Error).message;
-  }
-
-  try {
-    results.emoworld = await drainEmoworldQueue();
-  } catch (e) {
-    results.emoworldError = (e as Error).message;
-  }
-
+  // Cheap and bounded, so it always runs, and first.
   try {
     await pruneRateLimits();
     results.pruned = true;
   } catch (e) {
     results.pruneError = (e as Error).message;
   }
+  try {
+    results.expiredSessions = await pruneRefreshTokens();
+  } catch (e) {
+    results.expiredSessionsError = (e as Error).message;
+  }
 
-  return Response.json({ ok: true, ...results });
+  try {
+    const r = await sendDeadlineReminders(deadline);
+    results.deadlineReminders = { sent: r.sent };
+    more ||= r.more;
+  } catch (e) {
+    results.deadlineRemindersError = (e as Error).message;
+  }
+
+  try {
+    const r = await retryUnsentNotifications(25, { deadline });
+    results.emailRetry = r;
+    more ||= r.more;
+  } catch (e) {
+    results.emailRetryError = (e as Error).message;
+  }
+
+  try {
+    const r = await drainEmoworldQueue(20, { deadline });
+    results.emoworld = r;
+    more ||= Boolean(r.more);
+  } catch (e) {
+    results.emoworldError = (e as Error).message;
+  }
+
+  return Response.json({ ok: true, more, ...results });
 }
 
 /**
@@ -56,7 +80,7 @@ export async function GET(req: Request) {
  * and 24-hour marks; the notification dedupe key means a daily cron cannot
  * email the same person about the same window twice.
  */
-async function sendDeadlineReminders(): Promise<{ sent: number }> {
+async function sendDeadlineReminders(deadline: number): Promise<{ sent: number; more: boolean }> {
   const drafts = await query<{
     id: string;
     title: string;
@@ -82,6 +106,8 @@ async function sendDeadlineReminders(): Promise<{ sent: number }> {
 
   let sent = 0;
   for (const draft of drafts) {
+    // Already-reminded drafts dedupe instantly, so the next run resumes here.
+    if (Date.now() > deadline) return { sent, more: true };
     const t = templates.deadlineReminder({
       name: draft.writer_name,
       competition: draft.competition_name,
@@ -98,5 +124,5 @@ async function sendDeadlineReminders(): Promise<{ sent: number }> {
     });
     if (result.sent) sent++;
   }
-  return { sent };
+  return { sent, more: false };
 }

@@ -62,6 +62,20 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
+/**
+ * Compare two secrets (a shared key, a bearer token) without leaking through
+ * timing how much of them matched. Both sides are hashed first, so the compare
+ * always runs over equal-length input whatever was sent.
+ */
+export async function secretsEqual(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [x, y] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(a)),
+    crypto.subtle.digest('SHA-256', enc.encode(b)),
+  ]);
+  return timingSafeEqual(new Uint8Array(x), new Uint8Array(y));
+}
+
 export async function sha256Hex(input: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
   return Buffer.from(digest).toString('hex');

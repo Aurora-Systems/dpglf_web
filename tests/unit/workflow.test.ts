@@ -38,9 +38,29 @@ describe('submission state machine', () => {
     }
   });
 
-  it('lets the writer submit and withdraw their own draft, and nothing else', () => {
-    expect(canTransition('DRAFT', 'SUBMITTED', writer)).toBe(true);
+  it('lets the writer withdraw their own draft, and nothing else', () => {
     expect(canTransition('DRAFT', 'WITHDRAWN', writer)).toBe(true);
+    expect(canTransition('DRAFT', 'SHORTLISTED', writer)).toBe(false);
+    expect(canTransition('JUDGED', 'SHORTLISTED', writer)).toBe(false);
+    expect(canTransition('EDITORIAL', 'APPROVED_FOR_PUBLICATION', writer)).toBe(false);
+  });
+
+  it('submitting is system-only, so the status action cannot skip submitAction’s checks', () => {
+    expect(canTransition('DRAFT', 'SUBMITTED', writer)).toBe(false);
+    expect(canTransition('DRAFT', 'SUBMITTED', { roles: ['admin', 'super_admin'], isOwner: true })).toBe(false);
+    expect(canTransition('DRAFT', 'SUBMITTED', { roles: [], isOwner: false, isSystem: true })).toBe(true);
+  });
+
+  it('a writer can withdraw only before judging begins', () => {
+    for (const s of ['DRAFT', 'SUBMITTED', 'ELIGIBILITY_REVIEW', 'ELIGIBLE'] as const) {
+      expect(canTransition(s, 'WITHDRAWN', writer)).toBe(true);
+    }
+    for (const s of ['ASSIGNED_FOR_JUDGING', 'JUDGED', 'SHORTLISTED', 'MENTORSHIP', 'EDITORIAL'] as const) {
+      expect(canTransition(s, 'WITHDRAWN', writer)).toBe(false);
+    }
+  });
+
+  it('the original writer checks still hold', () => {
     expect(canTransition('DRAFT', 'SHORTLISTED', writer)).toBe(false);
     expect(canTransition('JUDGED', 'SHORTLISTED', writer)).toBe(false);
     expect(canTransition('EDITORIAL', 'APPROVED_FOR_PUBLICATION', writer)).toBe(false);

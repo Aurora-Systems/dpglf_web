@@ -76,8 +76,8 @@ export function ProfileForm({
           label="Publish my author page"
           hint={
             profile.slug
-              ? `Your page would be at /authors/${profile.slug}. Only the fields above appear — never your email, school or account details.`
-              : 'Only the fields above appear — never your email, school or account details.'
+              ? `Your page would be at /authors/${profile.slug}. Only the fields above appear, never your email, school or account details.`
+              : 'Only the fields above appear, never your email, school or account details.'
           }
         />
         {profile.isPublic && profile.slug && (

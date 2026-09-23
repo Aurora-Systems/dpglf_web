@@ -14,7 +14,7 @@ import { fail, invalid, ok, str, type ActionState } from '@/lib/actions';
 
 export async function subscribeAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   // A filled honeypot is a bot; answer as if it worked so it stops retrying.
-  if (str(form, 'website')) return ok('Thank you — please check your inbox to confirm.');
+  if (str(form, 'website')) return ok('Thank you. Please check your inbox to confirm.');
 
   const limit = await rateLimitIp('newsletter');
   if (!limit.ok) return fail('Too many attempts. Please try again later.');
@@ -51,11 +51,11 @@ export async function subscribeAction(_prev: ActionState, form: FormData): Promi
     });
   }
 
-  return ok('Thank you — please check your inbox to confirm your subscription.');
+  return ok('Thank you. Please check your inbox to confirm your subscription.');
 }
 
 export async function contactAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  if (str(form, 'website')) return ok('Thank you — your message has been sent.');
+  if (str(form, 'website')) return ok('Thank you. Your message has been sent.');
 
   const limit = await rateLimitIp('contact');
   if (!limit.ok) return fail('Too many messages from this connection. Please try again later.');
@@ -82,8 +82,8 @@ export async function contactAction(_prev: ActionState, form: FormData): Promise
     body: d.message,
     lines: [
       ['From', `${d.name} <${d.email}>`],
-      ['Organisation', d.organisation || '—'],
-      ['Subject', d.subject || '—'],
+      ['Organisation', d.organisation || 'Not given'],
+      ['Subject', d.subject || 'Not given'],
     ],
     link: abs('/dashboard/admin/messages'),
   });
@@ -105,11 +105,11 @@ export async function contactAction(_prev: ActionState, form: FormData): Promise
     dedupeKey: `contact_ack:${row?.id}`,
   });
 
-  return ok('Thank you — your message is with the Foundation and someone will reply.');
+  return ok('Thank you. Your message is with the Foundation and someone will reply.');
 }
 
 export async function inquiryAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  if (str(form, 'website')) return ok('Thank you — your enquiry has been received.');
+  if (str(form, 'website')) return ok('Thank you. Your enquiry has been received.');
 
   const limit = await rateLimitIp('inquiry');
   if (!limit.ok) return fail('Too many enquiries from this connection. Please try again later.');
@@ -158,7 +158,7 @@ export async function inquiryAction(_prev: ActionState, form: FormData): Promise
     lines: [
       ['Story', story?.title ?? 'General enquiry'],
       ['From', `${d.requesterName} <${d.requesterEmail}>`],
-      ['Organisation', d.organisation || '—'],
+      ['Organisation', d.organisation || 'Not given'],
       ['Format', d.format],
     ],
     link: abs('/dashboard/admin/inquiries'),
@@ -172,7 +172,7 @@ export async function inquiryAction(_prev: ActionState, form: FormData): Promise
     replyTo: d.requesterEmail,
   });
 
-  return ok('Thank you — the Foundation’s IP team will be in touch.');
+  return ok('Thank you. The Foundation’s IP team will be in touch.');
 }
 
 /** Confirms a double opt-in newsletter subscription from the emailed link. */

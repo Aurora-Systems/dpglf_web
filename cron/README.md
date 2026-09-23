@@ -7,7 +7,7 @@ service is the clock. Every six hours (`17 */6 * * *`, UTC) it calls the platfor
 - sends 72-hour and 24-hour deadline reminders to unfinished drafts
 - retries email that failed to send (5-attempt ceiling; the admin console can force past it)
 - drains the Emoworld handoff queue (no-op while `EMOWORLD_SYNC_ENABLED` is off)
-- prunes old rate-limit counters
+- prunes old rate-limit counters and dead sign-in sessions
 
 All of that work lives in the platform. This service holds **no database credentials and no business
 logic** — only the shared `CRON_KEY` — and every task behind the endpoint is idempotent, so a
@@ -65,7 +65,10 @@ A healthy report looks like:
 
 ## Reading the logs
 
-Each run writes one JSON line tagged `"event":"dpglf-cron"`. Failures to look for:
+Each pass writes one JSON line tagged `"event":"dpglf-cron"`. The platform works to a 7-second
+budget so it always finishes inside Netlify's function timeout; when it stops early it answers
+`"more": true` and this service calls again straight away (up to 6 passes per run), so a burst of
+deadline reminders or an email backlog clears in one run. Failures to look for:
 
 - **`status: 401`** — `CRON_KEY` here does not match Netlify's. Not retried; fix the variable.
 - **`<task>: …` errors** — the endpoint returned 200 but one task failed (e.g. `emailRetry`). The

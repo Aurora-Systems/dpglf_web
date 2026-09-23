@@ -61,7 +61,9 @@ export default async function ConsentPage({ params }: { params: Promise<{ token:
             {record.status === 'revoked' && (
               <div className="mt-6">
                 <Alert tone="warning" title="Consent was declined or withdrawn">
-                  The entry has been withdrawn. You can give consent below if that was a mistake.
+                  {record.submission_status === 'WITHDRAWN'
+                    ? 'The entry has been withdrawn. If that was a mistake, you can give consent below, then ask the writer to contact the Foundation to have the entry restored.'
+                    : 'You can give consent below if that was a mistake.'}
                 </Alert>
               </div>
             )}
@@ -73,7 +75,7 @@ export default async function ConsentPage({ params }: { params: Promise<{ token:
                   ['Writer', record.writer_name],
                   ['Age group', record.writer_age_band?.replace(/_/g, '–') ?? 'Under 18'],
                   ['Story', record.submission_title || 'Not yet titled'],
-                  ['Programme', record.competition_name ?? '—'],
+                  ['Programme', record.competition_name ?? 'Not specified'],
                   ['You are their', record.relationship],
                   ['Requested', formatDate(record.requested_at)],
                   ['Consent wording', <Badge key="v">{record.consent_version}</Badge>],
@@ -88,7 +90,7 @@ export default async function ConsentPage({ params }: { params: Promise<{ token:
               <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-muted">
                 {[
                   'That this young person may enter their own original story into the programme named above.',
-                  'That the Foundation may store the story privately and share it with the programme’s judges, mentors and editors — nobody else.',
+                  'That the Foundation may store the story privately and share it with the programme’s judges, mentors and editors, and nobody else.',
                   'That the Foundation may contact you and the writer by email about the entry.',
                   'That if the story is selected, the Foundation will seek separate, specific consent before publishing it or making it public.',
                   'That the writer keeps copyright in their story. Entering does not transfer ownership.',

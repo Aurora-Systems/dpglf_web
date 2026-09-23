@@ -92,7 +92,7 @@ export default async function MySubmissionsPage() {
                         <p className="text-xs">{formatNumber(s.word_count)} words</p>
                       ) : null}
                     </Td>
-                    <Td className="font-mono text-xs text-muted">{s.reference ?? '—'}</Td>
+                    <Td className="font-mono text-xs text-muted">{s.reference ?? (s.status === 'DRAFT' ? 'Pending' : 'None')}</Td>
                     <Td>
                       <StatusBadge status={s.status} />
                     </Td>

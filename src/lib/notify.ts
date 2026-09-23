@@ -26,8 +26,10 @@ export async function notify(input: NotifyInput): Promise<{ sent: boolean; dupli
   if (!input.toEmail) return { sent: false };
 
   const row = await queryOne<{ id: string }>(
-    `INSERT INTO notifications (user_id, to_email, type, channel, subject, payload, dedupe_key)
-     VALUES ($1, $2, $3, 'email', $4, $5, $6)
+    // claimed_at marks the row as in flight, so the retry pass leaves it alone
+    // while this request is still delivering it.
+    `INSERT INTO notifications (user_id, to_email, type, channel, subject, payload, dedupe_key, claimed_at)
+     VALUES ($1, $2, $3, 'email', $4, $5, $6, now())
      ON CONFLICT (dedupe_key) DO NOTHING
      RETURNING id`,
     [
@@ -71,6 +73,16 @@ export async function pendingNotificationCount(): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
+/** Retryable messages that were tried within the last minute (a forced retry skips them). */
+export async function recentlyTriedCount(): Promise<number> {
+  const row = await queryOne<{ n: string }>(
+    `SELECT count(*)::text AS n FROM notifications
+      WHERE sent_at IS NULL AND channel = 'email' AND payload ? 'html'
+        AND claimed_at >= now() - interval '1 minute'`,
+  );
+  return Number(row?.n ?? 0);
+}
+
 /**
  * Re-send recorded messages that never went out — typically because Resend was
  * unconfigured or the sending domain was unverified at the time. Runs from the
@@ -83,29 +95,55 @@ export async function pendingNotificationCount(): Promise<number> {
  * after a longer outage (an unverified domain, say) the scheduled pass has
  * already given up — and an operator deciding to try again must still be able
  * to.
+ *
+ * Rows are claimed before sending (attempt counted, claimed_at stamped) and a
+ * row claimed in the last ten minutes is skipped, so a run that overlaps another
+ * run, or a notify() still in flight, cannot send the same message twice.
+ * `deadline` (epoch ms) stops the loop early; the unsent rest is released for
+ * the next run.
  */
 export async function retryUnsentNotifications(
   limit = 25,
-  options: { force?: boolean } = {},
-): Promise<{ attempted: number; sent: number; failed: number }> {
+  options: { force?: boolean; deadline?: number } = {},
+): Promise<{ attempted: number; sent: number; failed: number; more: boolean }> {
   const rows = await query<{
     id: string;
     to_email: string | null;
     subject: string;
     payload: { html?: string; replyTo?: string | null };
   }>(
-    `SELECT id, to_email, subject, payload
-       FROM notifications
-      WHERE sent_at IS NULL AND channel = 'email' AND payload ? 'html'
-        AND ($2::boolean OR attempts < 5)
-      ORDER BY created_at
-      LIMIT $1`,
+    `UPDATE notifications
+        SET claimed_at = now(), attempts = attempts + 1
+      WHERE id IN (
+        SELECT id FROM notifications
+         WHERE sent_at IS NULL AND channel = 'email' AND payload ? 'html'
+           AND ($2::boolean OR attempts < 5)
+           -- In flight, or just tried by the scheduler: leave it. An operator's
+           -- forced retry only steps round a send that is genuinely under way.
+           AND (claimed_at IS NULL
+                OR claimed_at < now() - CASE WHEN $2::boolean THEN interval '1 minute'
+                                             ELSE interval '10 minutes' END)
+         ORDER BY created_at
+         LIMIT $1
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id, to_email, subject, payload`,
     [limit, options.force ?? false],
   );
 
   let sent = 0;
   let failed = 0;
-  for (const row of rows) {
+  let attempted = 0;
+  for (const [i, row] of rows.entries()) {
+    if (options.deadline && Date.now() > options.deadline) {
+      // Out of time: hand the untouched rows back, attempt uncounted.
+      await query(
+        `UPDATE notifications SET claimed_at = NULL, attempts = attempts - 1 WHERE id = ANY($1::uuid[])`,
+        [rows.slice(i).map((r) => r.id)],
+      );
+      return { attempted, sent, failed, more: true };
+    }
+    attempted++;
     if (!row.to_email || !row.payload?.html) continue;
     const result = await sendEmail({
       to: row.to_email,
@@ -118,11 +156,10 @@ export async function retryUnsentNotifications(
     await query(
       `UPDATE notifications
           SET sent_at = CASE WHEN $2::boolean THEN now() ELSE NULL END,
-              attempts = attempts + 1,
               last_error = $3
         WHERE id = $1`,
       [row.id, result.ok, result.ok ? null : (result.error ?? (result.skipped ? 'email not configured' : 'unknown'))],
     );
   }
-  return { attempted: rows.length, sent, failed };
+  return { attempted, sent, failed, more: rows.length === limit };
 }

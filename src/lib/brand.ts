@@ -28,7 +28,7 @@ export const SITE = {
   shortName: 'DPGLF',
   tagline: 'From Grassroots Narratives to Global Screens',
   description:
-    'DPGLF discovers, mentors, publishes, archives and adapts authentic Afro-inspired youth stories — building Africa’s leading youth storytelling and intellectual property ecosystem.',
+    'DPGLF discovers, mentors, publishes, archives and adapts authentic Afro-inspired youth stories, building Africa’s leading youth storytelling and intellectual property ecosystem.',
   url: (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000').replace(/\/$/, ''),
   inbox: process.env.FOUNDATION_INBOX ?? 'hello@dpglf.org',
 } as const;
@@ -43,7 +43,7 @@ export const STAGES = [
     blurb:
       'Annual competitions, school outreach and open digital submissions surface young writers who would otherwise stay invisible.',
     detail:
-      'Tales from the Baobab is the Foundation’s flagship discovery programme — an Afrocentric short story competition for writers under eighteen, opening in Zimbabwe and widening across Africa and the diaspora.',
+      'Tales from the Baobab is the Foundation’s flagship discovery programme: an Afrocentric short story competition for writers under eighteen, opening in Zimbabwe and widening across Africa and the diaspora.',
   },
   {
     key: 'develop',
@@ -53,7 +53,7 @@ export const STAGES = [
     blurb:
       'Selected writers are paired with established authors, editors and industry professionals for a structured mentorship cycle.',
     detail:
-      'Mentorship covers story structure, character, dialogue, editing, research, cultural authenticity and intellectual property awareness — building authors, not just better single stories.',
+      'Mentorship covers story structure, character, dialogue, editing, research, cultural authenticity and intellectual property awareness, building authors and not just better single stories.',
   },
   {
     key: 'publish',
@@ -63,7 +63,7 @@ export const STAGES = [
     blurb:
       'Editorial support, professional design and real publishing routes, in partnership with Emoworld Publishers.',
     detail:
-      'Perspectives, the annual anthology, promotes roughly twenty writers at once — emerging voices alongside established African authors — so a first publication arrives years earlier than the traditional route allows.',
+      'Perspectives, the annual anthology, promotes roughly twenty writers at once (emerging voices alongside established African authors), so a first publication arrives years earlier than the traditional route allows.',
   },
   {
     key: 'archive',
@@ -91,7 +91,7 @@ export const STAGES = [
     name: 'Commercialize',
     headline: 'Turning stories into sustainable value',
     blurb:
-      'Licensing, adaptation rights, educational licensing and royalties — with authors retaining ownership and sharing in revenue.',
+      'Licensing, adaptation rights, educational licensing and royalties, with authors retaining ownership and sharing in revenue.',
     detail:
       'Rights are recorded, professionally managed and strategically licensed so that value created by African stories returns to African creators.',
   },

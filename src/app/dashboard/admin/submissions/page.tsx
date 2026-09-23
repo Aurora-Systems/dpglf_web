@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { PageHeader } from '@/components/dashboard/Shell';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
-import { Badge, ButtonLink, Card, EmptyState, Panel, Table, Td, Th, buttonClass, cx } from '@/components/ui';
+import { Badge, ButtonAnchor, Card, EmptyState, Panel, Table, Td, Th, buttonClass, cx } from '@/components/ui';
 import { requireStaff } from '@/lib/permissions';
 import { formatDate, formatNumber } from '@/lib/format';
 import { SUBMISSION_STATUSES, STATUS_LABELS } from '@/lib/workflow';
@@ -39,7 +39,7 @@ export default async function AdminSubmissionsPage({
         title="All submissions"
         lead="The operational view: eligibility, consent, judging coverage and where each entry sits."
         action={
-          <ButtonLink
+          <ButtonAnchor
             href={`/api/export/submissions${(() => {
               const params = new URLSearchParams();
               if (sp.competition) params.set('competition', sp.competition);
@@ -52,7 +52,7 @@ export default async function AdminSubmissionsPage({
             size="sm"
           >
             Export CSV
-          </ButtonLink>
+          </ButtonAnchor>
         }
       />
 
@@ -147,13 +147,13 @@ export default async function AdminSubmissionsPage({
                         {row.title || 'Untitled'}
                       </Link>
                       <p className="font-mono text-[11px] text-muted">
-                        {row.reference ?? '—'} · {row.competition_name}
+                        {row.reference ?? 'No reference'} · {row.competition_name}
                       </p>
                     </Td>
                     <Td>
                       <p className="text-forest-800">{row.writer_name}</p>
                       <p className="text-xs text-muted">
-                        {row.age_band?.replace(/_/g, '–') ?? '—'}
+                        {row.age_band?.replace(/_/g, '–') ?? 'Not given'}
                         {row.word_count ? ` · ${formatNumber(row.word_count)} words` : ''}
                       </p>
                     </Td>
@@ -169,7 +169,7 @@ export default async function AdminSubmissionsPage({
                     <Td className="text-muted">
                       {row.completed}/{row.assigned}
                     </Td>
-                    <Td className="font-medium text-forest-900">{row.average_score ?? '—'}</Td>
+                    <Td className="font-medium text-forest-900">{row.average_score ?? 'Not scored'}</Td>
                     <Td>
                       <StatusBadge status={row.status} />
                       {row.submitted_at && (
@@ -185,7 +185,7 @@ export default async function AdminSubmissionsPage({
 
         <Panel
           title="Assign judges"
-          description="Entries that have passed eligibility. Assignments are additive — nothing existing is removed."
+          description="Entries that have passed eligibility. Assignments are additive, so nothing existing is removed."
         >
           <AssignJudgesForm
             submissions={assignable}

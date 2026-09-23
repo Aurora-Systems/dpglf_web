@@ -19,7 +19,7 @@ export default async function AdminUsersPage({
     <>
       <PageHeader
         title="People & roles"
-        lead="Roles are additive — one person can judge, mentor and write. Changes take effect when they next sign in or refresh."
+        lead="Roles are additive: one person can judge, mentor and write. Changes take effect when they next sign in or refresh."
       />
 
       <div className="space-y-6">

@@ -1,6 +1,6 @@
 import { cookies, headers } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
-import { query, queryOne } from './db';
+import { query, queryOne, tx } from './db';
 import { randomToken, sha256Hex } from './crypto';
 import type { Role } from './roles';
 import type { SessionUser } from './session';
@@ -63,40 +63,107 @@ export async function issueRefreshToken(userId: string, deviceInfo = ''): Promis
   return raw;
 }
 
+/** How long a just-rotated refresh token still vouches for its user. */
+const ROTATION_GRACE_SECONDS = 30;
+
 /**
- * Single-use rotation. The revoke IS the guard: only the caller whose UPDATE
- * actually flips revoked_at proceeds, so two concurrent refreshes with the same
- * token can never both succeed.
+ * Spend a refresh token and issue its successor.
+ *
+ * A token is spent once: the first request to present it marks it rotated.
+ *
+ * Grace window: a page fires several requests at once (navigation, prefetches,
+ * a form post), they can all carry the same expired access token, and only one
+ * wins the rotation. For a short while after that win the spent token still
+ * proves who the user is, and the losers get their own successor too. Whichever
+ * response the browser keeps, its refresh cookie is live; without this, a
+ * winning response the browser aborted (a second click, a cancelled prefetch)
+ * would strand the user on a spent token. Logout clears `rotated_at`, closing
+ * the window, so signing out still signs out.
  */
 export async function rotateRefreshToken(
   raw: string,
 ): Promise<{ userId: string; newRaw: string } | null> {
-  const claimed = await query<{ user_id: string }>(
-    `UPDATE refresh_tokens SET revoked_at = now()
-      WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()
-      RETURNING user_id`,
-    [await sha256Hex(raw)],
+  const hash = await sha256Hex(raw);
+  const newRaw = randomToken(32);
+  const newHash = await sha256Hex(newRaw);
+  const expires = new Date(Date.now() + REFRESH_TTL * 1000).toISOString();
+
+  // One transaction, holding the user row, the same row revokeAllRefreshTokens
+  // (logout, password reset, suspension) locks FOR UPDATE; KEY SHARE conflicts
+  // with that and nothing else, so ordinary writes to users are not blocked.
+  // Either the revoke goes first, and the re-check finds the window closed; or
+  // this commits first, and the revoke then sees and revokes the successor.
+  // Spending the token inside the transaction means a failure (a dropped
+  // WebSocket, say) rolls the spend back instead of burning the credential.
+  const userId = await tx(async (q) => {
+    // A suspended account cannot refresh; combined with the 15-minute access
+    // TTL that logs them out shortly after the suspension lands.
+    const [owner] = await q<{ id: string }>(
+      `SELECT u.id FROM users u
+        WHERE u.id = (SELECT user_id FROM refresh_tokens WHERE token_hash = $1)
+          AND u.status = 'active'
+        FOR KEY SHARE`,
+      [hash],
+    );
+    if (!owner) return null;
+    // Spend the token if it is still live. A parallel request that already
+    // spent it holds the row until it commits; this then updates nothing and
+    // falls through to the grace check.
+    await q(
+      `UPDATE refresh_tokens SET revoked_at = now(), rotated_at = now()
+        WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()`,
+      [hash],
+    );
+    // A separate statement, so it reads data committed after the lock was
+    // granted (a join in the locking SELECT would re-check only the user row).
+    const [open] = await q(
+      `SELECT 1 FROM refresh_tokens
+        WHERE token_hash = $1 AND rotated_at > now() - ($2::int * interval '1 second')`,
+      [hash, ROTATION_GRACE_SECONDS],
+    );
+    if (!open) return null;
+    await q(`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`, [
+      owner.id,
+      newHash,
+      expires,
+    ]);
+    return owner.id;
+  });
+  return userId ? { userId, newRaw } : null;
+}
+
+/**
+ * Drop refresh tokens nobody can use any more: expired, or revoked (by logout,
+ * or spent by rotation) more than a day ago. Run by the maintenance cron.
+ */
+export async function pruneRefreshTokens(): Promise<number> {
+  const rows = await query<{ id: string }>(
+    `DELETE FROM refresh_tokens
+      WHERE expires_at < now() - interval '1 day' OR revoked_at < now() - interval '1 day'
+      RETURNING id`,
   );
-  if (claimed.length === 0) return null;
-  const userId = claimed[0].user_id;
-  const u = await queryOne<{ status: string }>(`SELECT status FROM users WHERE id = $1`, [userId]);
-  // A suspended account cannot refresh; combined with the 15-minute access TTL
-  // that logs them out shortly after the suspension lands.
-  if (!u || u.status !== 'active') return null;
-  return { userId, newRaw: await issueRefreshToken(userId) };
+  return rows.length;
 }
 
 export async function revokeRefreshToken(raw: string): Promise<void> {
-  await query(`UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1`, [
+  await query(`UPDATE refresh_tokens SET revoked_at = now(), rotated_at = NULL WHERE token_hash = $1`, [
     await sha256Hex(raw),
   ]);
 }
 
 export async function revokeAllRefreshTokens(userId: string): Promise<void> {
-  await query(
-    `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`,
-    [userId],
-  );
+  await tx(async (q) => {
+    // Serialises with rotateRefreshToken's mint (see there). The UPDATE is a
+    // separate statement so it also catches a successor committed while this
+    // waited for the lock.
+    await q(`SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, [userId]);
+    // Clearing rotated_at also shuts the rotation grace window on spent tokens.
+    await q(
+      `UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, now()), rotated_at = NULL
+        WHERE user_id = $1 AND (revoked_at IS NULL OR rotated_at IS NOT NULL)`,
+      [userId],
+    );
+  });
 }
 
 // ---- cookie session ----------------------------------------------------------
@@ -159,8 +226,16 @@ export async function startSession(userId: string, deviceInfo = ''): Promise<Ses
   return user;
 }
 
+/**
+ * The caller's IP, for rate limits and consent records. Netlify's own header
+ * comes first: it is set by the edge and cannot be supplied by the client. The
+ * left-most X-Forwarded-For entry is whatever the client sent, so it is only a
+ * fallback for hosts without such a header (and local development).
+ */
 export async function clientIp(): Promise<string> {
   const h = await headers();
+  const netlify = h.get('x-nf-client-connection-ip');
+  if (netlify) return netlify.trim();
   const fwd = h.get('x-forwarded-for');
   return (fwd?.split(',')[0] ?? h.get('x-real-ip') ?? '').trim();
 }

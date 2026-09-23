@@ -32,7 +32,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string[] 
     headers: {
       'Content-Type': object.contentType,
       ...(object.size ? { 'Content-Length': String(object.size) } : {}),
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      // Brand keys are stable and get re-uploaded in place (a new logo, a new
+      // photo), so an immutable year-long cache would pin the old file in every
+      // returning browser. A day, revalidated in the background, is plenty.
+      'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
       'X-Content-Type-Options': 'nosniff',
     },
   });

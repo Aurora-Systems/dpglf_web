@@ -6,14 +6,14 @@ import { STATUS_LABELS } from '@/lib/workflow';
 export const metadata: Metadata = {
   title: 'How it works',
   description:
-    'Discover, Develop, Publish, Archive, Adapt, Commercialize — the six-stage journey a story takes through the DPGLF ecosystem.',
+    'Discover, Develop, Publish, Archive, Adapt, Commercialize: the six-stage journey a story takes through the DPGLF ecosystem.',
 };
 
 /** The writer-visible slice of the submission state machine. */
 const JOURNEY: { status: keyof typeof STATUS_LABELS; who: string; what: string }[] = [
   { status: 'DRAFT', who: 'You', what: 'Start an entry, add your story details and upload the manuscript.' },
   { status: 'SUBMITTED', who: 'You', what: 'Submit before the deadline and receive an immutable reference number.' },
-  { status: 'ELIGIBILITY_REVIEW', who: 'Programme admin', what: 'Your entry is checked against the rules — age, length, format, consent.' },
+  { status: 'ELIGIBILITY_REVIEW', who: 'Programme admin', what: 'Your entry is checked against the rules: age, length, format, consent.' },
   { status: 'ASSIGNED_FOR_JUDGING', who: 'Judges', what: 'Assigned readers score against a published rubric, without seeing who you are.' },
   { status: 'SHORTLISTED', who: 'Foundation', what: 'Results are finalised and every entrant is told the outcome.' },
   { status: 'MENTORSHIP', who: 'Your mentor', what: 'You revise with an established writer or editor; every draft is kept.' },
@@ -55,7 +55,7 @@ export default function HowItWorksPage() {
               Discover → Develop → Publish → Archive → Adapt → Commercialize
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-bone/75">
-              Every successful creative industry has a pipeline. This is ours — six connected
+              Every successful creative industry has a pipeline. This is ours: six connected
               stages, each with a purpose of its own and each reinforcing the next.
             </p>
           </div>

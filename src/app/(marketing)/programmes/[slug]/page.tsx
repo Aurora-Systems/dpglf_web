@@ -8,7 +8,7 @@ import { competitionBySlug } from '@/features/marketing/queries';
 const BAOBAB_FALLBACK = {
   name: 'Tales from the Baobab',
   tagline:
-    'An annual Afrocentric short story competition for writers under eighteen — from Zimbabwe, across Africa and the global African diaspora.',
+    'An annual Afrocentric short story competition for writers under eighteen, from Zimbabwe, across Africa and the global African diaspora.',
   themes: [
     'African history',
     'Cultural heritage',
@@ -67,9 +67,8 @@ export default async function ProgrammePage({ params }: Props) {
             </ButtonLink>
             <ButtonLink
               href="/policies/submissions"
-              variant="ghost"
+              variant="inverse"
               size="lg"
-              className="border border-bone/25 text-bone hover:border-bone/60 hover:bg-white/6"
             >
               Read the submission rules
             </ButtonLink>
@@ -88,7 +87,7 @@ export default async function ProgrammePage({ params }: Props) {
             <p className="mt-4 max-w-2xl leading-relaxed text-muted">
               The programme deliberately emphasises authentic African perspectives rather than
               externally imposed narratives. We are not only looking for technically proficient
-              writers — we are looking for voices worth hearing.
+              writers. We are looking for voices worth hearing.
             </p>
             <ul className="mt-7 grid gap-3 sm:grid-cols-2">
               {themes.map((t) => (
@@ -143,7 +142,7 @@ export default async function ProgrammePage({ params }: Props) {
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
                 Full rules, eligibility and the judging rubric are published here as soon as the
                 Foundation opens the call for submissions. Subscribe to the newsletter, or start a
-                draft now — you can finish it when entries open.
+                draft now and finish it when entries open.
               </p>
             </Card>
           )}
@@ -172,12 +171,12 @@ export default async function ProgrammePage({ params }: Props) {
                 ['Results', competition?.results_at ? formatDate(competition.results_at) : 'To be announced'],
                 ['Entries allowed', competition ? String(competition.max_entries) : '1'],
                 ['Languages', competition?.languages?.join(', ') || 'English'],
-                ['Judging', competition?.blind_judging === false ? 'Named' : 'Blind — judges do not see your name'],
+                ['Judging', competition?.blind_judging === false ? 'Named' : 'Blind: judges do not see your name'],
                 [
                   'Guardian consent',
                   competition?.requires_guardian_consent === false ? 'Not required' : 'Required for under-18 entrants',
                 ],
-                ['Formats', '.docx, PDF, RTF or plain text, up to 10 MB'],
+                ['Formats', '.docx, PDF, RTF or plain text, up to 4 MB'],
               ]}
             />
             <ButtonLink

@@ -82,7 +82,7 @@ const BAOBAB_RULES = `
 own original work, written in the language of entry, and not previously published.</p>
 <h3>Length and format</h3>
 <p>Stories must be between 500 and 3,000 words. Upload a Word (.docx), PDF, RTF or plain text file
-of no more than 10 MB. Do not put your name inside the manuscript — judging is blind.</p>
+of no more than 4 MB. Do not put your name inside the manuscript, because judging is blind.</p>
 <h3>Consent</h3>
 <p>A parent or guardian must give consent before an entry can be judged. The platform emails them a
 link once you add their details.</p>
@@ -97,7 +97,7 @@ see your name. Decisions of the judging panel are final.</p>
 const BAOBAB_ELIGIBILITY = `
 <p>Open to writers under eighteen from Zimbabwe, and progressively across Africa and the global
 African diaspora. One entry per writer per edition.</p>
-<p>Entries in Shona and Ndebele are welcome alongside English — say which language you are writing
+<p>Entries in Shona and Ndebele are welcome alongside English. Say which language you are writing
 in when you submit.</p>
 `;
 
@@ -162,7 +162,7 @@ async function main() {
     [
       'Tales from the Baobab',
       'tales-from-the-baobab',
-      'An annual Afrocentric short story competition for writers under eighteen — from Zimbabwe, across Africa and the global African diaspora.',
+      'An annual Afrocentric short story competition for writers under eighteen, from Zimbabwe, across Africa and the global African diaspora.',
       'The Foundation’s flagship talent discovery programme. Tales from the Baobab looks for voices capable of contributing to Africa’s cultural and intellectual landscape, not simply technically proficient writers.',
       BAOBAB_RULES.trim(),
       BAOBAB_ELIGIBILITY.trim(),
@@ -220,7 +220,7 @@ async function main() {
     [
       'the-foundation-opens',
       'The Dr. Phillip Gwatidzo Literary Foundation opens its doors',
-      'A new ecosystem for African youth storytelling — from first submission to screen.',
+      'A new ecosystem for African youth storytelling, from first submission to screen.',
       `<p>The Foundation is built on a simple observation: writing should be a profession, not only
        a hobby. Musicians progress from discovery to recording contracts. Athletes progress from
        grassroots competition to professional leagues. Writers deserve the same structured

@@ -18,8 +18,12 @@ export const MANUSCRIPT_TYPES = {
   'text/rtf': '.rtf',
 } as const;
 
-export const MANUSCRIPT_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+// 4 MB, for both. Uploads travel as a server-action body, and Netlify caps a
+// function request at 6 MB after base64-encoding binary bodies (a third larger),
+// so 4 MB plus form overhead is the most that reliably arrives. A 3,000-word
+// manuscript is well under 1 MB in any accepted format.
+export const MANUSCRIPT_MAX_BYTES = 4 * 1024 * 1024;
+export const IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 export interface StoredFile {
@@ -62,7 +66,7 @@ export function validateManuscript(file: { type: string; size: number; name: str
     throw new UploadError('Manuscripts must be a Word (.docx), PDF, RTF or plain text file.');
   }
   if (file.size > MANUSCRIPT_MAX_BYTES) {
-    throw new UploadError('That file is larger than the 10 MB limit.');
+    throw new UploadError('That file is larger than the 4 MB limit.');
   }
   if (file.size === 0) throw new UploadError('That file appears to be empty.');
 }
@@ -158,13 +162,13 @@ export async function storeFile(opts: {
  * the relevant permission check — this function deliberately does not know who
  * is asking.
  */
-export async function downloadUrlForFile(fileId: string): Promise<string | null> {
+export async function downloadUrlForFile(fileId: string, filename?: string): Promise<string | null> {
   const row = await queryOne<{ storage_key: string; original_name: string }>(
     `SELECT storage_key, original_name FROM files WHERE id = $1`,
     [fileId],
   );
   if (!row) return null;
-  return signedDownloadUrl(row.storage_key, { filename: row.original_name, expiresIn: 300 });
+  return signedDownloadUrl(row.storage_key, { filename: filename ?? row.original_name, expiresIn: 300 });
 }
 
 /**

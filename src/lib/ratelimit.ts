@@ -27,6 +27,7 @@ export const LIMITS = {
   submission: { max: 30, windowSeconds: 3600 },
   upload: { max: 40, windowSeconds: 3600 },
   inquiry: { max: 5, windowSeconds: 3600 },
+  consent: { max: 5, windowSeconds: 3600 },
 } satisfies Record<string, Limit>;
 
 export type LimitName = keyof typeof LIMITS;

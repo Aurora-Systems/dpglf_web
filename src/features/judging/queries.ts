@@ -44,7 +44,7 @@ export async function myAssignments(judgeId: string): Promise<JudgeAssignment[]>
          JOIN competitions c ON c.id = s.competition_id
          JOIN users u ON u.id = s.writer_id
          LEFT JOIN reviews r ON r.assignment_id = ra.id
-        WHERE ra.judge_id = $1 AND ra.status <> 'revoked'
+        WHERE ra.judge_id = $1 AND ra.status <> 'revoked' AND s.status <> 'WITHDRAWN'
         ORDER BY CASE ra.status WHEN 'assigned' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
                  ra.due_at ASC NULLS LAST, ra.assigned_at`,
       [judgeId],
@@ -74,7 +74,8 @@ export async function assignmentForJudge(
          JOIN competitions c ON c.id = s.competition_id
          JOIN users u ON u.id = s.writer_id
          LEFT JOIN reviews r ON r.assignment_id = ra.id
-        WHERE ra.id = $1 AND ra.judge_id = $2`,
+        WHERE ra.id = $1 AND ra.judge_id = $2
+          AND ra.status <> 'revoked' AND s.status <> 'WITHDRAWN'`,
       [assignmentId, judgeId],
     );
   } catch {

@@ -10,7 +10,7 @@ import { archiveFacets, searchArchive, PAGE_SIZE, type ArchiveFilters } from '@/
 export const metadata: Metadata = {
   title: 'Story Archive',
   description:
-    'A permanent, searchable repository of contemporary African youth narratives — preserved with the cultural and language metadata that makes them findable.',
+    'A permanent, searchable repository of contemporary African youth narratives, preserved with the cultural and language metadata that makes them findable.',
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -86,7 +86,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-relaxed text-bone/75">
             A cultural preservation platform, a research resource, a talent discovery tool and a
-            structured catalogue of adaptation-ready intellectual property — in one place.
+            structured catalogue of adaptation-ready intellectual property, all in one place.
           </p>
 
           <form action="/archive" className="mt-9 flex max-w-xl gap-2">

@@ -36,7 +36,7 @@ export default async function NotificationsPage() {
           </ul>
           <p className="mt-4 text-[13px] text-muted">
             If a message shows as not delivered, check the address on your account and contact the
-            Foundation — we can resend it.
+            Foundation so we can resend it.
           </p>
         </Panel>
       )}

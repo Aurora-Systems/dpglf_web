@@ -21,15 +21,16 @@ import {
   resetPasswordSchema,
   signupSchema,
 } from '@/lib/validation';
+import { SITE } from '@/lib/brand';
+import { safeRedirectPath } from '@/lib/redirect';
 import { fail, invalid, ok, str, type ActionState } from '@/lib/actions';
 
 const VERIFY_TTL_HOURS = 24;
 const RESET_TTL_HOURS = 1;
 
-/** A safe post-login destination: same-origin path only, never an open redirect. */
+/** A safe post-login destination (see lib/redirect.ts). */
 function safeNext(next: string | undefined): string {
-  if (!next || !next.startsWith('/') || next.startsWith('//')) return '/dashboard';
-  return next;
+  return safeRedirectPath(next, SITE.url);
 }
 
 async function issueEmailToken(userId: string, kind: 'verify' | 'reset', hours: number): Promise<string> {

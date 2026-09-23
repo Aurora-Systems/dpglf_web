@@ -58,24 +58,42 @@ export interface EmoworldStoryPayload {
 /**
  * Queue a story for the handoff. Idempotent: the partial unique index on
  * `story_id` means a story already waiting (or already sent) is not enqueued
- * twice, so re-approving after an edit does not create duplicates.
+ * twice, so re-approving after an edit does not create duplicates. A row that
+ * used up its attempts ('failed') is revived instead, so re-queueing from the
+ * admin console is how an operator retries after a long outage.
  */
-export async function enqueueStoryForEmoworld(storyId: string): Promise<void> {
+export async function enqueueStoryForEmoworld(storyId: string): Promise<boolean> {
   try {
     const payload = await buildPayload(storyId);
-    if (!payload) return;
-    await query(
+    if (!payload) return false;
+    // A 'sending' row whose claim went stale belonged to a run that died; it
+    // is revived like a failed one rather than left holding the story's slot.
+    const rows = await query<{ id: string }>(
       `INSERT INTO emoworld_sync_queue (story_id, payload)
        VALUES ($1, $2)
-       ON CONFLICT (story_id) WHERE status <> 'cancelled' DO NOTHING`,
+       ON CONFLICT (story_id) WHERE status <> 'cancelled'
+       DO UPDATE SET status = 'pending', attempts = 0, claimed_at = NULL, last_error = NULL,
+                     payload = EXCLUDED.payload
+        WHERE emoworld_sync_queue.status = 'failed'
+           OR (emoworld_sync_queue.status = 'sending'
+               AND emoworld_sync_queue.claimed_at < now() - interval '15 minutes')
+       RETURNING id`,
       [storyId, JSON.stringify(payload)],
     );
+    return rows.length > 0;
   } catch (e) {
     // A failure here must not roll back the publication decision.
     console.error(`[emoworld:enqueue] ${(e as Error).message}`);
+    return false;
   }
 }
 
+/**
+ * The wire payload for a story, or null when there is nothing that may be sent:
+ * no such story, or one whose entry was withdrawn (for a minor, possibly because
+ * a guardian declined consent). Null must stop a send, never fall back to an
+ * older snapshot.
+ */
 export async function buildPayload(storyId: string): Promise<EmoworldStoryPayload | null> {
   const row = await queryOne<{
     id: string;
@@ -117,7 +135,9 @@ export async function buildPayload(storyId: string): Promise<EmoworldStoryPayloa
          SELECT ownership_note, licence_type, territory, restrictions
            FROM rights_records WHERE story_id = s.id ORDER BY created_at DESC LIMIT 1
        ) r ON true
-      WHERE s.id = $1`,
+      WHERE s.id = $1
+        AND s.status <> 'withdrawn'
+        AND (sub.id IS NULL OR sub.status <> 'WITHDRAWN')`,
     [storyId],
   );
   if (!row) return null;
@@ -160,14 +180,29 @@ export interface DrainResult {
   sent: number;
   failed: number;
   skipped?: string;
+  more?: boolean;
 }
+
+/** Per-request limit on the Emoworld call, well inside a function timeout. */
+const SEND_TIMEOUT_MS = 8_000;
 
 /**
  * Send everything pending. Called from the admin console (and, later, a cron
  * route). Each row is attempted independently so one bad story cannot block the
  * rest of the queue.
+ *
+ * Rows are claimed as 'sending'. A 'sending' row whose claim is over fifteen
+ * minutes old belonged to a run that was killed mid-loop (a function timeout),
+ * and is claimed again rather than stuck forever. A 'failed' row also waits out
+ * those fifteen minutes before its next attempt: the scheduler calls again at
+ * once when a run stops early, and without the wait one outage would spend all
+ * five attempts inside a single run. `deadline` (epoch ms) stops the loop early
+ * and releases the unsent rest.
  */
-export async function drainEmoworldQueue(limit = 20): Promise<DrainResult> {
+export async function drainEmoworldQueue(
+  limit = 20,
+  options: { deadline?: number } = {},
+): Promise<DrainResult> {
   if (!isEmoworldSyncEnabled()) {
     return { attempted: 0, sent: 0, failed: 0, skipped: 'EMOWORLD_SYNC_ENABLED is not set' };
   }
@@ -175,12 +210,28 @@ export async function drainEmoworldQueue(limit = 20): Promise<DrainResult> {
   const base = process.env.EMOWORLD_API_BASE!.replace(/\/$/, '');
   const secret = process.env.EMOWORLD_SYNC_SECRET!;
 
+  // Out of time already (earlier tasks used the budget): claim nothing.
+  if (options.deadline && Date.now() > options.deadline) {
+    return { attempted: 0, sent: 0, failed: 0, more: true };
+  }
+
+  // A run killed mid-send on a row's last attempt leaves it 'sending' with no
+  // attempts left, which the claim below would never pick up again. Settle it
+  // as failed, so it shows as such and can be re-queued.
+  await query(
+    `UPDATE emoworld_sync_queue SET status = 'failed', last_error = 'run ended mid-send'
+      WHERE status = 'sending' AND attempts >= 5 AND claimed_at < now() - interval '15 minutes'`,
+  );
+
   const pending = await query<{ id: string; story_id: string; payload: EmoworldStoryPayload }>(
     `UPDATE emoworld_sync_queue
-        SET status = 'sending', attempts = attempts + 1
+        SET status = 'sending', attempts = attempts + 1, claimed_at = now()
       WHERE id IN (
         SELECT id FROM emoworld_sync_queue
-         WHERE status IN ('pending', 'failed') AND attempts < 5
+         WHERE attempts < 5
+           AND (status = 'pending'
+                OR (status IN ('failed', 'sending')
+                    AND (claimed_at IS NULL OR claimed_at < now() - interval '15 minutes')))
          ORDER BY created_at
          LIMIT $1
          FOR UPDATE SKIP LOCKED
@@ -191,10 +242,33 @@ export async function drainEmoworldQueue(limit = 20): Promise<DrainResult> {
 
   let sent = 0;
   let failed = 0;
-  for (const row of pending) {
+  let attempted = 0;
+  for (const [i, row] of pending.entries()) {
+    if (options.deadline && Date.now() > options.deadline) {
+      await query(
+        `UPDATE emoworld_sync_queue
+            SET status = 'pending', attempts = attempts - 1, claimed_at = NULL
+          WHERE id = ANY($1::uuid[])`,
+        [pending.slice(i).map((r) => r.id)],
+      );
+      return { attempted, sent, failed, more: true };
+    }
+    attempted++;
     try {
-      // Rebuild rather than trusting a payload snapshot that may be weeks old.
-      const payload = (await buildPayload(row.story_id)) ?? row.payload;
+      // Rebuild rather than trusting a payload snapshot that may be weeks old. No
+      // payload means the story may no longer be sent (withdrawn, or deleted):
+      // cancel the row. Sending the old snapshot instead would ship a withdrawn
+      // minor's story after their guardian said no.
+      const payload = await buildPayload(row.story_id);
+      if (!payload) {
+        await query(
+          `UPDATE emoworld_sync_queue
+              SET status = 'cancelled', claimed_at = NULL, last_error = 'entry withdrawn or story removed'
+            WHERE id = $1`,
+          [row.id],
+        );
+        continue;
+      }
       const res = await fetch(`${base}/api/partners/dpglf/stories`, {
         method: 'POST',
         headers: {
@@ -202,6 +276,11 @@ export async function drainEmoworldQueue(limit = 20): Promise<DrainResult> {
           Authorization: `Bearer ${secret}`,
         },
         body: JSON.stringify(payload),
+        // Never past the caller's deadline: a request that outlives the function
+        // is killed with it, and the unsent rows would not be released.
+        signal: AbortSignal.timeout(
+          Math.max(1_000, Math.min(SEND_TIMEOUT_MS, (options.deadline ?? Infinity) - Date.now())),
+        ),
       });
       if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`.slice(0, 300));
       const body = (await res.json().catch(() => ({}))) as { id?: string };
@@ -221,7 +300,7 @@ export async function drainEmoworldQueue(limit = 20): Promise<DrainResult> {
     }
   }
 
-  return { attempted: pending.length, sent, failed };
+  return { attempted, sent, failed, more: pending.length === limit };
 }
 
 export async function emoworldQueueRows(limit = 50) {

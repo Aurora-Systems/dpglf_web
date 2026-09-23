@@ -11,6 +11,7 @@ import { hasRole, isStaff } from '@/lib/access';
 import { SITE } from '@/lib/brand';
 import { conflictSchema, reviewSchema } from '@/lib/validation';
 import { bool, fail, invalid, ok, str, type ActionState } from '@/lib/actions';
+import { applyTransition } from '@/features/workflow/transition';
 
 /**
  * Judging.
@@ -59,9 +60,14 @@ export async function saveReviewAction(_prev: ActionState, form: FormData): Prom
 
   // Scores arrive as `score:<criterionId>` / `comment:<criterionId>` pairs.
   const scores: { criterionId: string; score: number; comment: string }[] = [];
+  const seen = new Set<string>();
   for (const [key, value] of form.entries()) {
     if (!key.startsWith('score:') || typeof value !== 'string') continue;
     const criterionId = key.slice(6);
+    // One score per criterion. A repeated key would otherwise count twice in the
+    // weighted total (and satisfy the "every criterion" check with duplicates).
+    if (seen.has(criterionId)) return fail('Each criterion can only be scored once.');
+    seen.add(criterionId);
     scores.push({
       criterionId,
       score: Number(value),
@@ -101,11 +107,26 @@ export async function saveReviewAction(_prev: ActionState, form: FormData): Prom
     total += s.score * Number(criterion.weight);
     max += criterion.max_score * Number(criterion.weight);
   }
-  if (d.final && criteria.length > 0 && d.scores.length !== criteria.length) {
+  if (d.final && criteria.length > 0 && !criteria.every((c) => seen.has(c.id))) {
     return fail('Score every criterion before finalising.');
   }
 
-  await tx(async (q) => {
+  const saved = await tx(async (q) => {
+    // Lock the assignment and re-check it: a revoke (entry withdrawn, conflict
+    // declared) that lands while this save runs must not be undone by it.
+    const [live] = await q<{ id: string; locked: boolean }>(
+      `SELECT ra.id, (r.locked_at IS NOT NULL AND NOT c.allow_score_revision) AS locked
+         FROM review_assignments ra
+         JOIN submissions s ON s.id = ra.submission_id
+         JOIN competitions c ON c.id = s.competition_id
+         LEFT JOIN reviews r ON r.assignment_id = ra.id
+        WHERE ra.id = $1 AND ra.status NOT IN ('revoked', 'declined') AND s.status <> 'WITHDRAWN'
+        FOR UPDATE OF ra`,
+      [assignmentId],
+    );
+    if (!live) return 'inactive';
+    // Two saves queue on the row lock; the second must see a finalise by the first.
+    if (live.locked) return 'locked';
     const [review] = await q<{ id: string }>(
       `INSERT INTO reviews (assignment_id, rubric_id, total_score, max_score, comments,
                             internal_notes, recommendation, submitted_at, locked_at, updated_at)
@@ -151,7 +172,12 @@ export async function saveReviewAction(_prev: ActionState, form: FormData): Prom
         WHERE id = $1`,
       [assignmentId, d.final ? 'completed' : 'in_progress', d.final],
     );
+    return 'saved';
   });
+  if (saved === 'inactive') return fail('This assignment is no longer active.');
+  if (saved === 'locked') {
+    return fail('Your score has been finalised and can no longer be changed. Ask an administrator to reopen it.');
+  }
 
   await audit({
     actorId: user.userId,
@@ -174,8 +200,8 @@ export async function saveReviewAction(_prev: ActionState, form: FormData): Prom
       title: `Review completed: ${entry?.reference ?? assignment.submission_id.slice(0, 8)}`,
       body: '',
       lines: [
-        ['Entry', entry ? `${entry.reference ?? '—'} · ${entry.title || 'Untitled'}` : assignment.submission_id],
-        ['Programme', entry?.competition_name ?? '—'],
+        ['Entry', entry ? `${entry.reference ?? 'No reference'} · ${entry.title || 'Untitled'}` : assignment.submission_id],
+        ['Programme', entry?.competition_name ?? 'Not specified'],
         ['Judge', user.name || user.email],
         ['Score', `${total.toFixed(1)} / ${max.toFixed(0)}`],
         ['Recommendation', d.recommendation],
@@ -226,7 +252,7 @@ export async function declareConflictAction(_prev: ActionState, form: FormData):
   });
 
   revalidatePath('/dashboard/judge');
-  return ok('Thank you — this entry has been removed from your queue and an administrator has been notified.');
+  return ok('Thank you. This entry has been removed from your queue and an administrator has been notified.');
 }
 
 // ---- admin: assign judges -----------------------------------------------------------
@@ -242,31 +268,44 @@ export async function assignJudgesAction(_prev: ActionState, form: FormData): Pr
   if (judgeIds.length === 0) return fail('Select at least one judge.');
 
   let created = 0;
+  let skipped = 0;
   await tx(async (q) => {
     for (const submissionId of submissionIds) {
+      // Under a row lock: an entry withdrawn since the admin loaded the list is
+      // skipped, and a withdrawal cannot slip in between the check and insert.
+      const [current] = await q<{ status: string }>(
+        `SELECT status FROM submissions WHERE id = $1 FOR UPDATE`,
+        [submissionId],
+      );
+      if (!current || (current.status !== 'ELIGIBLE' && current.status !== 'ASSIGNED_FOR_JUDGING')) {
+        skipped++;
+        continue;
+      }
       for (const judgeId of judgeIds) {
-        // A judge who has already declared a conflict on an entry is not
-        // re-assigned to it by a later bulk action.
+        // A judge who declared a conflict on an entry is not re-assigned to it by
+        // a later bulk action. One whose assignment was revoked (entry returned
+        // to the pool, say) is: re-assigning must not silently do nothing.
         const [row] = await q<{ id: string }>(
           `INSERT INTO review_assignments (submission_id, judge_id, assigned_by, due_at)
            VALUES ($1, $2, $3, NULLIF($4, '')::timestamptz)
-           ON CONFLICT (submission_id, judge_id) DO NOTHING
+           ON CONFLICT (submission_id, judge_id) DO UPDATE
+              SET status = 'assigned', assigned_by = EXCLUDED.assigned_by, assigned_at = now(),
+                  due_at = EXCLUDED.due_at, completed_at = NULL
+            WHERE review_assignments.status = 'revoked'
            RETURNING id`,
           [submissionId, judgeId, user.userId, dueAt],
         );
         if (row) created++;
       }
-      await q(
-        `UPDATE submissions SET status = 'ASSIGNED_FOR_JUDGING', updated_at = now()
-          WHERE id = $1 AND status = 'ELIGIBLE'`,
-        [submissionId],
-      );
-      await q(
-        `INSERT INTO submission_events (submission_id, from_status, to_status, actor_id, note)
-         SELECT $1, 'ELIGIBLE', 'ASSIGNED_FOR_JUDGING', $2, 'Assigned for judging'
-          WHERE EXISTS (SELECT 1 FROM submissions WHERE id = $1 AND status = 'ASSIGNED_FOR_JUDGING')`,
-        [submissionId, user.userId],
-      );
+      // Guarded on ELIGIBLE: an entry already in judging just gains judges, and
+      // does not log a second transition.
+      await applyTransition(q, {
+        submissionId,
+        from: 'ELIGIBLE',
+        to: 'ASSIGNED_FOR_JUDGING',
+        actorId: user.userId,
+        note: 'Assigned for judging',
+      });
     }
   });
 
@@ -302,11 +341,14 @@ export async function assignJudgesAction(_prev: ActionState, form: FormData): Pr
     action: 'judging.assigned',
     entityType: 'competition',
     entityId: str(form, 'competitionId') || null,
-    metadata: { submissions: submissionIds.length, judges: judgeIds.length, created },
+    metadata: { submissions: submissionIds.length, judges: judgeIds.length, created, skipped },
   });
 
   revalidatePath('/dashboard/admin/submissions');
-  return ok(`${created} assignment${created === 1 ? '' : 's'} created.`);
+  const note = skipped
+    ? ` ${skipped} entr${skipped === 1 ? 'y was' : 'ies were'} skipped because ${skipped === 1 ? 'it is' : 'they are'} no longer eligible (withdrawn, say).`
+    : '';
+  return ok(`${created} assignment${created === 1 ? '' : 's'} created.${note}`);
 }
 
 /** Admin: unlock a finalised review so a judge can revise it. */
@@ -315,15 +357,26 @@ export async function unlockReviewAction(_prev: ActionState, form: FormData): Pr
   if (!user || !isStaff(user)) return fail('Only a programme administrator can reopen scoring.');
 
   const reviewId = str(form, 'reviewId');
-  const rows = await query<{ assignment_id: string }>(
-    `UPDATE reviews SET locked_at = NULL, updated_at = now() WHERE id = $1 RETURNING assignment_id`,
-    [reviewId],
-  );
-  if (rows.length === 0) return fail('That review could not be found.');
-
-  await query(`UPDATE review_assignments SET status = 'in_progress', completed_at = NULL WHERE id = $1`, [
-    rows[0].assignment_id,
-  ]);
+  // Only a live assignment reopens: a revoked or declined one (entry withdrawn,
+  // conflict declared) must stay closed, so both rows change together or not
+  // at all.
+  const reopened = await tx(async (q) => {
+    const [live] = await q<{ assignment_id: string }>(
+      `SELECT ra.id AS assignment_id FROM reviews r
+         JOIN review_assignments ra ON ra.id = r.assignment_id
+         JOIN submissions s ON s.id = ra.submission_id
+        WHERE r.id = $1 AND ra.status NOT IN ('revoked', 'declined') AND s.status <> 'WITHDRAWN'
+        FOR UPDATE OF r, ra`,
+      [reviewId],
+    );
+    if (!live) return false;
+    await q(`UPDATE reviews SET locked_at = NULL, updated_at = now() WHERE id = $1`, [reviewId]);
+    await q(`UPDATE review_assignments SET status = 'in_progress', completed_at = NULL WHERE id = $1`, [
+      live.assignment_id,
+    ]);
+    return true;
+  });
+  if (!reopened) return fail('That review cannot be reopened: the assignment is no longer active.');
   await audit({
     actorId: user.userId,
     action: 'review.unlocked',

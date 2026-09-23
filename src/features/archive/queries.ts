@@ -99,7 +99,7 @@ export async function searchArchive(
     const rows = await query<ArchiveRow>(
       `SELECT s.id, s.slug, s.title, s.synopsis, s.language, s.genre, s.themes, s.published_at,
               COALESCE(NULLIF(p.pen_name, ''), NULLIF(p.display_name, ''), u.name) AS author_name,
-              p.slug AS author_slug, am.country, am.visibility, am.adaptation_ready, am.year,
+              CASE WHEN p.is_public THEN p.slug END AS author_slug, am.country, am.visibility, am.adaptation_ready, am.year,
               fc.storage_key AS cover_key
          FROM stories s
          JOIN archive_metadata am ON am.story_id = s.id
@@ -207,7 +207,10 @@ export async function archiveStory(user: SessionUser | null, slug: string): Prom
       `SELECT s.id, s.slug, s.title, s.synopsis, s.language, s.genre, s.themes, s.published_at,
               s.author_id, s.body_html, s.excerpt, s.word_count,
               COALESCE(NULLIF(p.pen_name, ''), NULLIF(p.display_name, ''), u.name) AS author_name,
-              p.slug AS author_slug, COALESCE(p.bio, '') AS author_bio, p.country AS author_country,
+              -- A private profile still supplies the byline, never its bio or page.
+              CASE WHEN p.is_public THEN p.slug END AS author_slug,
+              CASE WHEN p.is_public THEN COALESCE(p.bio, '') ELSE '' END AS author_bio,
+              CASE WHEN p.is_public THEN p.country END AS author_country,
               am.country, am.region, am.visibility, am.adaptation_ready, am.year,
               am.cultural_context, am.keywords, am.age_band, am.edition,
               c.name AS competition_name,
@@ -281,7 +284,7 @@ export async function storiesByAuthor(user: SessionUser | null, authorId: string
     return await query<ArchiveRow>(
       `SELECT s.id, s.slug, s.title, s.synopsis, s.language, s.genre, s.themes, s.published_at,
               COALESCE(NULLIF(p.pen_name, ''), NULLIF(p.display_name, ''), u.name) AS author_name,
-              p.slug AS author_slug, am.country, am.visibility, am.adaptation_ready, am.year,
+              CASE WHEN p.is_public THEN p.slug END AS author_slug, am.country, am.visibility, am.adaptation_ready, am.year,
               fc.storage_key AS cover_key
          FROM stories s
          JOIN archive_metadata am ON am.story_id = s.id

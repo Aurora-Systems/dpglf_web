@@ -42,7 +42,7 @@ export function ContactForm({ defaultTopic = 'general' }: { defaultTopic?: strin
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Organisation" htmlFor="organisation" hint="School, publisher, studio or funder — if relevant.">
+        <Field label="Organisation" htmlFor="organisation" hint="School, publisher, studio or funder, if relevant.">
           <Input id="organisation" name="organisation" maxLength={160} />
         </Field>
         <Field label="What is this about?" htmlFor="topic" required>

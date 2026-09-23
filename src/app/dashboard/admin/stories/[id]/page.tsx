@@ -96,7 +96,7 @@ export default async function AdminStoryPage({ params }: { params: Promise<{ id:
                       {p.title || p.edition || p.publication_type}
                     </p>
                     <p className="text-muted">
-                      {[p.publisher, p.edition, formatDate(p.publication_date), p.isbn && `ISBN ${p.isbn}`]
+                      {[p.publisher, p.edition, p.publication_date && formatDate(p.publication_date), p.isbn && `ISBN ${p.isbn}`]
                         .filter(Boolean)
                         .join(' · ')}
                     </p>
@@ -121,9 +121,9 @@ export default async function AdminStoryPage({ params }: { params: Promise<{ id:
                   'Archive visibility',
                   story.visibility ? VISIBILITY_LABELS[story.visibility] : 'No archive record',
                 ],
-                ['Words', story.word_count ? formatNumber(story.word_count) : '—'],
-                ['Published', formatDate(story.published_at)],
-                ['Reference', story.reference ?? '—'],
+                ['Words', story.word_count ? formatNumber(story.word_count) : 'Not counted'],
+                ['Published', story.published_at ? formatDate(story.published_at) : 'Not yet'],
+                ['Reference', story.reference ?? 'None'],
               ]}
             />
             {story.submission_id && (

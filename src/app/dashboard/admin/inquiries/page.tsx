@@ -22,7 +22,7 @@ export default async function AdminInquiriesPage() {
     <>
       <PageHeader
         title="Rights enquiries"
-        lead="Publishers, producers and researchers registering interest. Nothing is licensed here — this is the conversation that precedes an agreement."
+        lead="Publishers, producers and researchers registering interest. Nothing is licensed here. This is the conversation that precedes an agreement."
       />
 
       {inquiries.length === 0 ? (

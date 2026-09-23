@@ -36,9 +36,14 @@ function http(): NeonQueryFunction<false, false> {
 
 function pool(): Pool {
   if (!globalForDb._neonPool) {
-    // Node 20+/Workers both expose a standards-compliant global WebSocket; the
-    // driver leaves this unset by default and throws without it.
-    if (!neonConfig.webSocketConstructor && typeof globalThis.WebSocket !== 'undefined') {
+    // Node 22+ and Workers expose a standards-compliant global WebSocket (Node
+    // 20 does not, unflagged); the driver leaves this unset by default.
+    if (!neonConfig.webSocketConstructor) {
+      if (typeof globalThis.WebSocket === 'undefined') {
+        throw new Error(
+          'No global WebSocket: database transactions need Node 22 or later (check NODE_VERSION).',
+        );
+      }
       neonConfig.webSocketConstructor = globalThis.WebSocket as never;
     }
     globalForDb._neonPool = new Pool({ connectionString: connectionString(), max: 5 });

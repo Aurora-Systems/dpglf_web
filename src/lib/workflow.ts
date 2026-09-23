@@ -96,7 +96,10 @@ interface Transition {
 
 export const TRANSITIONS: Record<SubmissionStatus, Transition[]> = {
   DRAFT: [
-    { to: 'SUBMITTED', actors: ['writer_owner'], label: 'Submit entry' },
+    // `system` only: submitAction is the single path, because it is the one that
+    // checks the deadline, consent, declarations and manuscript, and allocates
+    // the reference and blind label. A bare status change must not bypass it.
+    { to: 'SUBMITTED', actors: ['system'], label: 'Submit entry' },
     { to: 'WITHDRAWN', actors: ['writer_owner', 'admin', 'super_admin'], label: 'Withdraw' },
   ],
   SUBMITTED: [
@@ -197,11 +200,11 @@ export const ACTIVE_STATUSES: SubmissionStatus[] = [
 // ---- archive visibility ------------------------------------------------------
 
 export const VISIBILITY_LABELS: Record<string, string> = {
-  private: 'Private — Foundation only',
-  internal: 'Internal — staff and editors',
-  partner: 'Partner — approved publishers and producers',
-  public_excerpt: 'Public — metadata and excerpt',
-  public_full: 'Public — full text',
+  private: 'Private: Foundation only',
+  internal: 'Internal: staff and editors',
+  partner: 'Partner: approved publishers and producers',
+  public_excerpt: 'Public: metadata and excerpt',
+  public_full: 'Public: full text',
 };
 
 export const VISIBILITY_HELP: Record<string, string> = {

@@ -1,15 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { RedirectType, redirect } from 'next/navigation';
 import { audit } from '@/lib/audit';
-import { getSessionUser } from '@/lib/auth';
+import { getSessionUser, revokeAllRefreshTokens } from '@/lib/auth';
 import { query, queryOne, tx } from '@/lib/db';
 import { slugify } from '@/lib/format';
 import { isStaff, isSuperAdmin } from '@/lib/access';
-import { sanitizeRichText, textToHtml } from '@/lib/richtext';
+import { articleToHtml, sanitizeRichText, textToHtml } from '@/lib/richtext';
 import { pruneRateLimits } from '@/lib/ratelimit';
-import { retryUnsentNotifications } from '@/lib/notify';
+import { recentlyTriedCount, retryUnsentNotifications } from '@/lib/notify';
 import { IMAGE_MAX_BYTES, IMAGE_TYPES, UploadError, discardFile, storeFile } from '@/lib/files';
 import {
   archiveMetaSchema,
@@ -116,7 +116,10 @@ export async function saveCompetitionAction(_prev: ActionState, form: FormData):
             name = $2, slug = $3, tagline = $4, description = $5, rules_html = $6,
             eligibility_html = $7, themes = $8, countries = $9, min_age = $10, max_age = $11,
             word_min = $12, word_max = $13, max_entries = $14,
-            opens_at = $15::timestamptz, closes_at = $16::timestamptz, results_at = $17::timestamptz,
+            -- The form sends Harare wall-clock time with no offset (see FOUNDATION_TZ).
+            opens_at = $15::timestamp AT TIME ZONE 'Africa/Harare',
+            closes_at = $16::timestamp AT TIME ZONE 'Africa/Harare',
+            results_at = $17::timestamp AT TIME ZONE 'Africa/Harare',
             blind_judging = $18, allow_score_revision = $19, requires_guardian_consent = $20,
             status = $21, rubric_id = $22::uuid, rules_version = $23, updated_at = now()
           WHERE id = $1`,
@@ -128,8 +131,11 @@ export async function saveCompetitionAction(_prev: ActionState, form: FormData):
            (name, slug, tagline, description, rules_html, eligibility_html, themes, countries,
             min_age, max_age, word_min, word_max, max_entries, opens_at, closes_at, results_at,
             blind_judging, allow_score_revision, requires_guardian_consent, status, rubric_id, rules_version)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::timestamptz,$15::timestamptz,
-                 $16::timestamptz,$17,$18,$19,$20,$21::uuid,$22)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+                 $14::timestamp AT TIME ZONE 'Africa/Harare',
+                 $15::timestamp AT TIME ZONE 'Africa/Harare',
+                 $16::timestamp AT TIME ZONE 'Africa/Harare',
+                 $17,$18,$19,$20,$21::uuid,$22)
          RETURNING id`,
         values,
       );
@@ -397,7 +403,7 @@ export async function uploadCoverAction(_prev: ActionState, form: FormData): Pro
   if (!(IMAGE_TYPES as readonly string[]).includes(file.type)) {
     return fail('Covers must be a JPEG, PNG or WebP image.');
   }
-  if (file.size > IMAGE_MAX_BYTES) return fail('Covers must be 5 MB or smaller.');
+  if (file.size > IMAGE_MAX_BYTES) return fail('Covers must be 4 MB or smaller.');
 
   const story = await queryOne<{ id: string; slug: string; cover_file_id: string | null }>(
     `SELECT id, slug, cover_file_id FROM stories WHERE id = $1`,
@@ -621,18 +627,18 @@ export async function updateRolesAction(_prev: ActionState, form: FormData): Pro
   const parsed = roleUpdateSchema.safeParse({ userId: str(form, 'userId'), roles });
   if (!parsed.success) return invalid(parsed.error);
 
-  // Only a super admin can create another one, or take the role away.
+  // Only a super admin grants or removes administrator roles (admin or super
+  // admin). setUserStatusAction relies on this: otherwise a plain admin could
+  // strip another admin's role, then suspend them.
   const target = await queryOne<{ roles: Role[] | null }>(
     `SELECT array_remove(array_agg(role), NULL) AS roles FROM user_roles WHERE user_id = $1`,
     [parsed.data.userId],
   );
   const had = new Set(target?.roles ?? []);
   const wants = new Set(parsed.data.roles);
-  if (
-    (wants.has('super_admin') !== had.has('super_admin') || (had.has('super_admin') && !wants.has('super_admin'))) &&
-    !isSuperAdmin(guard.user)
-  ) {
-    return fail('Only a super admin can grant or remove the super admin role.');
+  const privileged: Role[] = ['admin', 'super_admin'];
+  if (privileged.some((r) => had.has(r) !== wants.has(r)) && !isSuperAdmin(guard.user)) {
+    return fail('Only a super admin can grant or remove administrator roles.');
   }
   // Never let the last super admin remove their own access.
   if (had.has('super_admin') && !wants.has('super_admin')) {
@@ -674,13 +680,30 @@ export async function setUserStatusAction(_prev: ActionState, form: FormData): P
   if (!['active', 'suspended'].includes(status)) return fail('Unknown status.');
   if (userId === guard.user.userId) return fail('You cannot suspend your own account.');
 
-  await query(`UPDATE users SET status = $2, updated_at = now() WHERE id = $1`, [userId, status]);
-  if (status === 'suspended') {
-    await query(
-      `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`,
+  // Suspension is as strong as removing roles, so it carries the same guards as
+  // updateRolesAction: only a super admin acts on an admin or super admin, and
+  // the last active super admin cannot be locked out.
+  const target = await queryOne<{ roles: string[] }>(
+    `SELECT COALESCE(array_agg(role), '{}') AS roles FROM user_roles WHERE user_id = $1`,
+    [userId],
+  );
+  const targetRoles = target?.roles ?? [];
+  const targetIsAdmin = targetRoles.includes('admin') || targetRoles.includes('super_admin');
+  if (targetIsAdmin && !isSuperAdmin(guard.user)) {
+    return fail('Only a super admin can suspend or reactivate an administrator.');
+  }
+  if (status === 'suspended' && targetRoles.includes('super_admin')) {
+    const others = await queryOne<{ n: string }>(
+      `SELECT count(*)::text AS n
+         FROM user_roles ur JOIN users u ON u.id = ur.user_id
+        WHERE ur.role = 'super_admin' AND u.status = 'active' AND u.id <> $1`,
       [userId],
     );
+    if (Number(others?.n ?? 0) === 0) return fail('At least one active super admin must remain.');
   }
+
+  await query(`UPDATE users SET status = $2, updated_at = now() WHERE id = $1`, [userId, status]);
+  if (status === 'suspended') await revokeAllRefreshTokens(userId);
   await audit({
     actorId: guard.user.userId,
     action: `user.${status}`,
@@ -742,25 +765,73 @@ export async function saveNewsAction(_prev: ActionState, form: FormData): Promis
 
   const id = str(form, 'id');
   const title = str(form, 'title');
-  if (!title) return fail('Give the post a title.');
+  // Sent back with any failure: React resets the form after the action, and the
+  // form uses these as its defaults so an article is never lost to a typo'd slug.
+  const echo = {
+    title,
+    slug: str(form, 'slug'),
+    excerpt: str(form, 'excerpt'),
+    body: str(form, 'body'),
+    tags: str(form, 'tags'),
+    coverAlt: str(form, 'coverAlt'),
+    status: str(form, 'status'),
+  };
+  if (!title) return fail('Give the post a title.', undefined, echo);
   const slug = str(form, 'slug') || slugify(title, 'post');
   const status = str(form, 'status') === 'published' ? 'published' : 'draft';
+
+  // The picture: optional on every save. A new file replaces the old one;
+  // "remove" clears it; otherwise the current picture stays.
+  const file = form.get('cover');
+  const hasFile = file instanceof File && file.size > 0;
+  if (hasFile) {
+    if (!(IMAGE_TYPES as readonly string[]).includes(file.type)) {
+      return fail('The picture must be a JPEG, PNG or WebP image.', undefined, echo);
+    }
+    if (file.size > IMAGE_MAX_BYTES) return fail('The picture must be 4 MB or smaller.', undefined, echo);
+  }
+
+  const previous = id
+    ? await queryOne<{ cover_file_id: string | null }>(`SELECT cover_file_id FROM news_posts WHERE id = $1`, [id])
+    : null;
+  if (id && !previous) return fail('That post could not be found.', undefined, echo);
+
+  let stored: { id: string } | null = null;
+  if (hasFile) {
+    try {
+      stored = await storeFile({
+        buffer: Buffer.from(await file.arrayBuffer()),
+        originalName: file.name,
+        mimeType: file.type,
+        ownerId: guard.user.userId,
+        // Same public prefix as story covers, which /media is allowed to serve.
+        purpose: 'cover',
+        visibility: 'public',
+      });
+    } catch (e) {
+      return fail(e instanceof UploadError ? e.message : 'The picture could not be uploaded. Please try again.', undefined, echo);
+    }
+  }
+  const coverFileId = stored?.id ?? (bool(form, 'removeCover') ? null : (previous?.cover_file_id ?? null));
 
   const values = [
     slug,
     title,
     str(form, 'excerpt').slice(0, 500),
-    sanitizeRichText(str(form, 'bodyHtml')),
+    articleToHtml(str(form, 'body')),
     toList(str(form, 'tags'), 10),
     status,
     guard.user.userId,
+    coverFileId,
+    str(form, 'coverAlt').slice(0, 200),
   ];
 
+  let postId = id;
   try {
     if (id) {
       await query(
         `UPDATE news_posts SET slug = $2, title = $3, excerpt = $4, body_html = $5, tags = $6,
-                status = $7, author_id = $8,
+                status = $7, author_id = $8, cover_file_id = $9::uuid, cover_alt = $10,
                 published_at = CASE WHEN $7::text = 'published' AND published_at IS NULL THEN now()
                                     WHEN $7::text = 'draft' THEN NULL ELSE published_at END,
                 updated_at = now()
@@ -768,27 +839,45 @@ export async function saveNewsAction(_prev: ActionState, form: FormData): Promis
         [id, ...values],
       );
     } else {
-      await query(
-        `INSERT INTO news_posts (slug, title, excerpt, body_html, tags, status, author_id, published_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7, CASE WHEN $6::text = 'published' THEN now() ELSE NULL END)`,
+      const row = await queryOne<{ id: string }>(
+        `INSERT INTO news_posts (slug, title, excerpt, body_html, tags, status, author_id,
+                                 cover_file_id, cover_alt, published_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::uuid,$9, CASE WHEN $6::text = 'published' THEN now() ELSE NULL END)
+         RETURNING id`,
         values,
       );
+      postId = row?.id ?? '';
     }
   } catch (e) {
-    if ((e as Error).message.includes('news_posts_slug_key')) return fail('That slug is already in use.');
-    return fail('The post could not be saved.');
+    // Nothing points at a just-uploaded picture if the post did not save.
+    if (stored) await discardFile(stored.id).catch(() => {});
+    if ((e as Error).message.includes('news_posts_slug_key')) return fail('That slug is already in use.', undefined, echo);
+    console.error(`[admin:news] ${(e as Error).message}`);
+    return fail('The post could not be saved.', undefined, echo);
+  }
+
+  // A replaced or removed picture is referenced by nothing else.
+  if (previous?.cover_file_id && previous.cover_file_id !== coverFileId) {
+    await discardFile(previous.cover_file_id).catch(() => {});
   }
 
   await audit({
     actorId: guard.user.userId,
     action: id ? 'news.updated' : 'news.created',
     entityType: 'news_post',
-    entityId: id || slug,
-    metadata: { status },
+    entityId: postId || slug,
+    metadata: { status, picture: stored ? 'replaced' : coverFileId ? 'kept' : 'none' },
   });
   revalidatePath('/dashboard/admin/content');
   revalidatePath('/news');
-  return ok(status === 'published' ? 'Published.' : 'Saved as a draft.');
+  revalidatePath(`/news/${slug}`);
+  revalidatePath('/');
+  // Both land on the editor with the outcome in the URL: a new post so the
+  // picture and article can be checked, an edited one because the editor
+  // remounts with the saved values (and would drop an in-form message).
+  if (!id) redirect(`/dashboard/admin/content/news/${postId}?created=1`);
+  revalidatePath(`/dashboard/admin/content/news/${postId}`);
+  redirect(`/dashboard/admin/content/news/${postId}?saved=1`, RedirectType.replace);
 }
 
 export async function savePageAction(_prev: ActionState, form: FormData): Promise<ActionState> {
@@ -836,7 +925,7 @@ export async function drainEmoworldAction(): Promise<ActionState> {
   const guard = await staff();
   if ('error' in guard) return guard.error;
 
-  const result = await drainEmoworldQueue();
+  const result = await drainEmoworldQueue(20, { deadline: Date.now() + 7_000 });
   await audit({
     actorId: guard.user.userId,
     action: 'emoworld.drain',
@@ -852,7 +941,12 @@ export async function enqueueStoryAction(_prev: ActionState, form: FormData): Pr
   const guard = await staff();
   if ('error' in guard) return guard.error;
   const storyId = str(form, 'storyId');
-  await enqueueStoryForEmoworld(storyId);
+  const queued = await enqueueStoryForEmoworld(storyId);
+  if (!queued) {
+    return fail(
+      'Nothing was queued. The story is already waiting or sent, or its entry has been withdrawn.',
+    );
+  }
   await audit({
     actorId: guard.user.userId,
     action: 'emoworld.enqueued',
@@ -910,8 +1004,10 @@ export async function saveSettingAction(_prev: ActionState, form: FormData): Pro
 export async function retryEmailsAction(): Promise<ActionState> {
   const guard = await staff();
   if ('error' in guard) return guard.error;
-  // An operator pressing the button overrides the scheduled pass's attempt ceiling.
-  const result = await retryUnsentNotifications(50, { force: true });
+  // An operator pressing the button overrides the scheduled pass's attempt
+  // ceiling. The deadline keeps a large backlog inside the function timeout;
+  // pressing again (or the next cron run) carries on from where it stopped.
+  const result = await retryUnsentNotifications(50, { force: true, deadline: Date.now() + 7_000 });
   await audit({
     actorId: guard.user.userId,
     action: 'notifications.retried',
@@ -919,7 +1015,11 @@ export async function retryEmailsAction(): Promise<ActionState> {
     metadata: { ...result },
   });
   revalidatePath('/dashboard/admin/audit');
-  if (result.attempted === 0) return ok('Nothing waiting to be retried.');
+  if (result.attempted === 0) {
+    return (await recentlyTriedCount()) > 0
+      ? ok('Those emails were tried less than a minute ago. Try again shortly.')
+      : ok('Nothing waiting to be retried.');
+  }
   return ok(`${result.sent} sent, ${result.failed} still failing of ${result.attempted} attempted.`);
 }
 

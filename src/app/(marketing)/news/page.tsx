@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Badge, Card, EmptyState, Eyebrow } from '@/components/ui';
 import { formatDate } from '@/lib/format';
 import { allNews } from '@/features/marketing/queries';
+import { NewsPicture } from '@/components/site/NewsPicture';
 
 export const metadata: Metadata = {
   title: 'News',
@@ -26,21 +27,27 @@ export default async function NewsPage() {
       ) : (
         <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {posts.map((post) => (
-            <Card key={post.id} className="relative flex flex-col p-6 transition-colors hover:border-gold-500">
-              <p className="text-xs text-muted">{formatDate(post.published_at)}</p>
-              <h2 className="font-display mt-2 text-xl leading-snug font-semibold text-forest-900">
-                <Link href={`/news/${post.slug}`} className="before:absolute before:inset-0">
-                  {post.title}
-                </Link>
-              </h2>
-              <p className="mt-3 flex-1 text-sm leading-relaxed text-muted">{post.excerpt}</p>
-              {post.tags.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {post.tags.slice(0, 3).map((t) => (
-                    <Badge key={t}>{t}</Badge>
-                  ))}
-                </div>
-              )}
+            <Card
+              key={post.id}
+              className="group relative flex flex-col overflow-hidden transition-colors hover:border-gold-500"
+            >
+              <NewsPicture coverKey={post.cover_key} alt={post.cover_alt} />
+              <div className="flex flex-1 flex-col p-6">
+                <p className="text-xs text-muted">{formatDate(post.published_at)}</p>
+                <h2 className="font-display mt-2 text-xl leading-snug font-semibold text-forest-900">
+                  <Link href={`/news/${post.slug}`} className="before:absolute before:inset-0">
+                    {post.title}
+                  </Link>
+                </h2>
+                <p className="mt-3 flex-1 text-sm leading-relaxed text-muted">{post.excerpt}</p>
+                {post.tags.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {post.tags.slice(0, 3).map((t) => (
+                      <Badge key={t}>{t}</Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Card>
           ))}
         </div>
