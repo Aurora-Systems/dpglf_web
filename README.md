@@ -72,6 +72,7 @@ requires as local files.
 ```
 db/schema.sql                 Full schema — idempotent, re-runnable
 scripts/                      db-push, seed, asset upload
+cron/                         Deno Deploy service that calls /api/cron every six hours
 src/app/
   (marketing)/                Public site: home, about, how-it-works, programmes,
                               perspectives, archive, authors, partners, support,
@@ -166,21 +167,26 @@ integration.
 
 ## Scheduled work
 
-Point any scheduler at `/api/cron` once or twice a day:
+`/api/cron` sends 72-hour and 24-hour deadline reminders to unfinished drafts, retries unsent email,
+drains the Emoworld queue and prunes old rate-limit counters. Everything it does is idempotent.
+
+Netlify gives the route no clock, so a separate **Deno Deploy** service in [`cron/`](cron/README.md)
+calls it every six hours with the shared `CRON_KEY`. That service holds no database credentials and
+no business logic — see its README to deploy and verify it. To run the tasks by hand:
 
 ```bash
-curl -H "Authorization: Bearer $CRON_KEY" https://your-domain/api/cron
+curl -H "Authorization: Bearer $CRON_KEY" https://gwatidzo.me/api/cron
 ```
-
-It sends 72-hour and 24-hour deadline reminders to unfinished drafts, drains the Emoworld queue,
-and prunes old rate-limit counters. Everything it does is idempotent.
 
 ---
 
 ## Deployment
 
-**Netlify (default).** `netlify.toml` is committed; set the secrets in the Netlify UI. The runtime
-is Node, which is what `pg`-style pooling and the AWS SDK expect.
+**Netlify (default).** `netlify.toml` is committed and already carries the public identity
+(`NEXT_PUBLIC_SITE_URL=https://gwatidzo.me`); set the secrets in the Netlify UI. The runtime is Node,
+which is what the AWS SDK and the manuscript parsers expect. Note the R2 key id is read as
+`CLOUDFLARE_ACCESS_key_id` — that exact mixed casing. Scheduled work runs from the Deno Deploy
+service in `cron/`.
 
 **Cloudflare Workers (the implementation plan's suggestion)** is a supported path but is not
 configured here. The code was written to keep it open — Web Crypto instead of `node:crypto`, the

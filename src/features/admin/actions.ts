@@ -910,7 +910,8 @@ export async function saveSettingAction(_prev: ActionState, form: FormData): Pro
 export async function retryEmailsAction(): Promise<ActionState> {
   const guard = await staff();
   if ('error' in guard) return guard.error;
-  const result = await retryUnsentNotifications(50);
+  // An operator pressing the button overrides the scheduled pass's attempt ceiling.
+  const result = await retryUnsentNotifications(50, { force: true });
   await audit({
     actorId: guard.user.userId,
     action: 'notifications.retried',

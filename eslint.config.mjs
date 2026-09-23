@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The Deno Deploy cron service has its own toolchain (deno lint/check).
+    "cron/**",
   ]),
 ]);
 

@@ -17,6 +17,11 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # Public identity, set here rather than in the UI: NEXT_PUBLIC_* values are
+  # baked in at build time (email links, sitemap, OG tags), so they must be
+  # right on the very first build. Not secrets.
+  NEXT_PUBLIC_SITE_URL = "https://gwatidzo.me"
+  NEXT_PUBLIC_SITE_NAME = "Dr. Phillip Gwatidzo Literary Foundation"
   # Whitelist non-secret config from the secrets scanner: these values are
   # low-entropy and legitimately appear in build output.
   SECRETS_SCAN_OMIT_KEYS = "ACCESS_TTL,REFRESH_TTL,CLOUDFLARE_ACCOUNT_ID,CLOUDFLARE_BUCKET_NAME,CLOUDFLARE_PUBLIC_URL,EMAIL_FROM,FOUNDATION_INBOX,NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SITE_NAME,EMOWORLD_SYNC_ENABLED,EMOWORLD_API_BASE"

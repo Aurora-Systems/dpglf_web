@@ -75,11 +75,18 @@ export async function pendingNotificationCount(): Promise<number> {
  * Re-send recorded messages that never went out — typically because Resend was
  * unconfigured or the sending domain was unverified at the time. Runs from the
  * cron route and the admin console. Rows without a stored body (written before
- * bodies were recorded) are skipped rather than guessed at, and five attempts
- * is the ceiling so a permanently bad address cannot retry forever.
+ * bodies were recorded) are skipped rather than guessed at.
+ *
+ * The scheduled pass stops at five attempts so a permanently bad address
+ * cannot retry forever. `force` lifts that ceiling for the admin button: a
+ * scheduler running every few hours exhausts five attempts within a day, so
+ * after a longer outage (an unverified domain, say) the scheduled pass has
+ * already given up — and an operator deciding to try again must still be able
+ * to.
  */
 export async function retryUnsentNotifications(
   limit = 25,
+  options: { force?: boolean } = {},
 ): Promise<{ attempted: number; sent: number; failed: number }> {
   const rows = await query<{
     id: string;
@@ -89,10 +96,11 @@ export async function retryUnsentNotifications(
   }>(
     `SELECT id, to_email, subject, payload
        FROM notifications
-      WHERE sent_at IS NULL AND channel = 'email' AND attempts < 5 AND payload ? 'html'
+      WHERE sent_at IS NULL AND channel = 'email' AND payload ? 'html'
+        AND ($2::boolean OR attempts < 5)
       ORDER BY created_at
       LIMIT $1`,
-    [limit],
+    [limit, options.force ?? false],
   );
 
   let sent = 0;
