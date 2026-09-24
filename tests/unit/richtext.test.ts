@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { articleToHtml, htmlToArticle, htmlToText, sanitizeRichText, textToHtml } from '@/lib/richtext';
+import { articleToHtml, htmlToArticle, htmlToParagraphs, htmlToText, sanitizeRichText, textToHtml } from '@/lib/richtext';
 
 /**
  * Authored HTML reaches the public site, so the sanitiser is a security
@@ -109,5 +109,13 @@ describe('article bodies: containers and entities', () => {
   it('keeps escaped tag-shaped text as HTML, so a save cannot turn it into markup', () => {
     const stored = '<p>Use the &lt;b&gt; tag for bold.</p>';
     expect(htmlToArticle(stored)).toBe(stored);
+  });
+});
+
+describe('htmlToParagraphs', () => {
+  it('keeps paragraph and line breaks so a handed-off story is not one block', () => {
+    expect(htmlToParagraphs('<h2>One</h2><p>First &amp; best.<br>Same paragraph.</p>\n<p>Second  para.</p>')).toBe(
+      'One\n\nFirst & best.\nSame paragraph.\n\nSecond para.',
+    );
   });
 });

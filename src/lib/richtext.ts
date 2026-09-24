@@ -154,3 +154,27 @@ export function htmlToArticle(html: string): string {
   // a body is edited as HTML instead.
   return AUTHORED_HTML.test(text) ? html : text;
 }
+
+/**
+ * Plain text that keeps the shape of the story: a blank line between blocks
+ * (paragraphs, headings, list items), a single newline for a <br>. Unlike
+ * htmlToText, which flattens everything onto one line for snippets and search,
+ * this is for handing a whole story to another system as readable text.
+ */
+export function htmlToParagraphs(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|h[1-6]|li|blockquote|pre|tr|div|figcaption)\s*>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, '&')
+    .split('\n')
+    .map((line) => line.replace(/[ \t\r\f]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

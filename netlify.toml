@@ -1,9 +1,14 @@
 # Netlify build config for the DPGLF platform.
 # The repo root IS the Next.js app, so there is no base directory.
 #
-# Only NON-secret config lives here (this file is committed). The real secrets —
-# DATABASE_URL, AUTH_SECRET, RESEND_API_KEY, CLOUDFLARE_*_KEY, CRON_KEY,
-# EMOWORLD_SYNC_SECRET — must be set as environment variables in the Netlify UI.
+# This file is committed, so no secret values live here. Every variable from
+# .env.local is set in the Netlify UI and marked "Contains secret values";
+# SECRETS_SCAN_OMIT_KEYS below lists the ones that are not actually secret, so
+# the secrets scanner does not fail the build when their values legitimately
+# appear in build output (e.g. NEXT_PUBLIC_* in the browser bundle, "900").
+# The real secrets: DATABASE_URL, DATABASE_URL_DIRECT, AUTH_SECRET,
+# CLOUDFLARE_ACCESS_KEY_ID, CLOUDFLARE_SECRET_ACCESS_KEY, RESEND_API_KEY,
+# CRON_KEY, EMOWORLD_SYNC_SECRET.
 
 [build]
   command = "pnpm build"

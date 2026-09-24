@@ -1,5 +1,5 @@
 import { query, queryOne } from '@/lib/db';
-import { htmlToText } from '@/lib/richtext';
+import { htmlToParagraphs } from '@/lib/richtext';
 
 /**
  * Handoff to Emoworld Publishers.
@@ -29,7 +29,10 @@ export interface EmoworldStoryPayload {
   slug: string;
   title: string;
   synopsis: string;
+  /** The story as plain text; paragraphs are separated by a blank line. */
   bodyText: string;
+  /** The same story as DPGLF's sanitised HTML (p, h2–h4, lists, emphasis, links). */
+  bodyHtml: string;
   language: string;
   genre: string | null;
   themes: string[];
@@ -148,7 +151,8 @@ export async function buildPayload(storyId: string): Promise<EmoworldStoryPayloa
     slug: row.slug,
     title: row.title,
     synopsis: row.synopsis,
-    bodyText: row.body_html ? htmlToText(row.body_html) : '',
+    bodyText: row.body_html ? htmlToParagraphs(row.body_html) : '',
+    bodyHtml: row.body_html ?? '',
     language: row.language,
     genre: row.genre,
     themes: row.themes ?? [],
