@@ -101,7 +101,8 @@ export default async function JudgeAssignmentPage({
           </Panel>
         </div>
 
-        <aside className="space-y-5">
+        {/* Due date, fairness guidance and the conflict link come first on phones. */}
+        <aside className="order-first space-y-5 lg:order-none">
           <Card className="p-5">
             <h2 className="font-display text-base font-semibold text-forest-900">Assignment</h2>
             <DescList

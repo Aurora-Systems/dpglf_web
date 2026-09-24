@@ -42,7 +42,7 @@ export default async function StoryPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8 lg:py-16">
-      <Link href="/archive" className="text-sm text-gold-700 hover:underline">
+      <Link href="/archive" className="-my-3 inline-block py-3 text-sm text-gold-700 hover:underline">
         ← Back to the archive
       </Link>
 

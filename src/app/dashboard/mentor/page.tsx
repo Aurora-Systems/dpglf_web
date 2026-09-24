@@ -32,7 +32,7 @@ export default async function MentorPage() {
               <ul className="divide-y divide-line">
                 {active.map((m) => (
                   <li key={m.id} className="flex flex-wrap items-start justify-between gap-4 py-4">
-                    <div className="min-w-0">
+                    <div className="min-w-0 sm:flex-1">
                       <Link
                         href={`/dashboard/mentor/${m.id}`}
                         className="font-display text-lg font-semibold text-forest-900 hover:text-gold-700"
@@ -45,7 +45,7 @@ export default async function MentorPage() {
                       </p>
                       {m.goal && <p className="mt-2 max-w-xl text-[13px] text-muted">{m.goal}</p>}
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 text-right">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:flex-col sm:items-end sm:text-right">
                       <Badge tone={m.status === 'active' ? 'good' : 'neutral'}>{m.status}</Badge>
                       <span className="text-xs text-muted">
                         {m.total_milestones - m.open_milestones}/{m.total_milestones} milestones

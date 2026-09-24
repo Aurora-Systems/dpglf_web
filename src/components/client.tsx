@@ -1,8 +1,11 @@
 'use client';
 
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { buttonClass, cx } from './ui';
+import type { ActionState } from '@/lib/actions';
+import { Alert, buttonClass, cx } from './ui';
 
 /** Interactive bits. Everything else in the app stays a server component. */
 
@@ -80,10 +83,11 @@ export function FileField({
     <div className="space-y-2">
       <label
         htmlFor={id}
-        className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-forest-900/25 bg-parchment px-4 py-4 text-sm transition-colors hover:border-gold-500 hover:bg-gold-100/30"
+        className="flex cursor-pointer flex-col items-start gap-2 rounded-lg border border-dashed border-forest-900/25 bg-parchment px-4 py-4 text-sm transition-colors hover:border-gold-500 hover:bg-gold-100/30 sm:flex-row sm:items-center sm:gap-3"
       >
         <span className={buttonClass('outline', 'sm')}>{label}</span>
-        <span className="min-w-0 flex-1 truncate text-muted">
+        {/* On phones the whole name wraps under the button, so a writer can check the file. */}
+        <span className="w-full min-w-0 text-muted wrap-anywhere sm:w-auto sm:flex-1 sm:truncate">
           {picked ?? currentName ?? 'No file selected'}
         </span>
       </label>
@@ -153,8 +157,9 @@ export function CountedTextarea({
         required={required}
         placeholder={placeholder}
         defaultValue={defaultValue}
+        minLength={min}
         onChange={(e) => setLen(e.target.value.length)}
-        className="w-full resize-y rounded-lg border border-line bg-white px-3 py-2.5 text-[15px] leading-relaxed text-ink placeholder:text-muted/60 focus:border-gold-500 focus:ring-2 focus:ring-gold-500/25 focus:outline-none"
+        className="w-full resize-y rounded-lg border border-line bg-white px-3 py-2.5 text-base leading-relaxed sm:text-[15px] text-ink placeholder:text-muted/60 focus:border-gold-500 focus:ring-2 focus:ring-gold-500/25 focus:outline-none"
       />
       <p className={cx('mt-1 text-right text-xs', over || under ? 'text-red-700' : 'text-muted')}>
         {len.toLocaleString()} / {max.toLocaleString()}
@@ -308,5 +313,105 @@ export function IntroVideo({ src, poster, className }: { src: string; poster: st
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * A form action's result. On a long form the message sits far above the submit
+ * button, off-screen on a phone, so it scrolls itself into view when it lands.
+ */
+export function FormMessage({ state }: { state: ActionState }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!state.message) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    ref.current?.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+  }, [state]);
+  if (!state.message) return null;
+  return (
+    // scroll-mt-20 clears the sticky dashboard header.
+    <div ref={ref} className="scroll-mt-20">
+      <Alert tone={state.ok ? 'success' : 'error'}>{state.message}</Alert>
+    </div>
+  );
+}
+
+type DashboardNavItem = { href: string; label: string; badge?: number };
+
+/**
+ * The dashboard's section menu. A sidebar from lg up; below that, a short menu
+ * (writers, judges, mentors) wraps onto a couple of rows, and the long staff
+ * menu folds into a disclosure instead of a sideways-scrolling strip. The
+ * current section is marked everywhere.
+ */
+export function DashboardNav({ items }: { items: DashboardNavItem[] }) {
+  const pathname = usePathname();
+  const menu = useRef<HTMLDetailsElement>(null);
+  // Longest match wins: /dashboard/admin/users marks "People & roles", not "Overview".
+  const active = items
+    .filter((i) => pathname === i.href || pathname.startsWith(`${i.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+
+  // The layout persists across navigations: fold the phone menu after each one.
+  useEffect(() => {
+    menu.current?.removeAttribute('open');
+  }, [pathname]);
+
+  const item = (i: DashboardNavItem, phone = false) => {
+    const current = i.href === active?.href;
+    return (
+      <li key={i.href}>
+        <Link
+          href={i.href}
+          aria-current={current ? 'page' : undefined}
+          className={cx(
+            'flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm',
+            phone ? 'min-h-10' : 'whitespace-nowrap',
+            current
+              ? 'bg-forest-900/8 font-medium text-forest-900'
+              : 'text-forest-700 transition-colors hover:bg-forest-900/6 hover:text-forest-900',
+          )}
+        >
+          {i.label}
+          {i.badge ? (
+            <span className="rounded-full bg-gold-500 px-1.5 py-0.5 text-[11px] font-semibold text-forest-950">
+              {i.badge}
+            </span>
+          ) : null}
+        </Link>
+      </li>
+    );
+  };
+
+  return (
+    <>
+      {items.length > 6 ? (
+        <details ref={menu} className="group rounded-xl border border-line bg-white lg:hidden">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-medium text-forest-900 [&::-webkit-details-marker]:hidden">
+            <span className="truncate">
+              Menu<span className="font-normal text-muted"> · {active?.label ?? 'Dashboard'}</span>
+            </span>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180"
+            >
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.39a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06z"
+              />
+            </svg>
+          </summary>
+          <ul className="grid grid-cols-2 gap-1 border-t border-line p-2 sm:grid-cols-3">
+            {items.map((i) => item(i, true))}
+          </ul>
+        </details>
+      ) : (
+        <ul className="-mx-3 flex flex-wrap gap-1 lg:hidden">{items.map((i) => item(i, true))}</ul>
+      )}
+      <ul className="hidden gap-1 pb-1 lg:sticky lg:top-24 lg:flex lg:flex-col">{items.map((i) => item(i))}</ul>
+    </>
   );
 }

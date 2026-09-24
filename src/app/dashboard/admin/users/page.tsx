@@ -35,7 +35,7 @@ export default async function AdminUsersPage({
                 type="search"
                 defaultValue={q ?? ''}
                 placeholder="Name or email"
-                className="mt-1.5 w-full rounded-lg border border-line px-3 py-2 text-sm focus:border-gold-500 focus:outline-none"
+                className="mt-1.5 w-full rounded-lg border border-line px-3 py-2 text-base focus:border-gold-500 focus:outline-none sm:text-sm"
               />
             </div>
             <button type="submit" className={buttonClass('outline', 'md')}>

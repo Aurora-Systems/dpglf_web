@@ -15,7 +15,7 @@ export default function ForgotPasswordPage() {
         <RequestResetForm />
       </div>
       <p className="mt-6 text-sm text-muted">
-        <Link href="/login" className="text-gold-700 hover:underline">
+        <Link href="/login" className="-my-2 inline-block py-2 text-gold-700 hover:underline">
           Back to sign in
         </Link>
       </p>

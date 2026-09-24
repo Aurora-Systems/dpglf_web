@@ -117,7 +117,7 @@ export function MilestoneControls({
   const [, action] = useActionState(setMilestoneStatusAction, IDLE);
 
   return (
-    <form action={action} className="flex gap-1">
+    <form action={action} className="flex gap-2 sm:gap-1">
       <input type="hidden" name="milestoneId" value={milestoneId} />
       {(
         [
@@ -132,7 +132,7 @@ export function MilestoneControls({
           name="status"
           value={value}
           className={cx(
-            'rounded-md px-2.5 py-1 text-[12px] transition-colors',
+            'rounded-md px-3 py-2 text-[13px] transition-colors sm:px-2.5 sm:py-1 sm:text-[12px]',
             status === value
               ? 'bg-forest-900 text-bone'
               : 'text-muted hover:bg-forest-900/8 hover:text-forest-900',

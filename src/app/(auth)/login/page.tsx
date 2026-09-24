@@ -19,7 +19,7 @@ export default async function LoginPage({
       <h1 className="font-display text-3xl font-semibold text-forest-900">Sign in</h1>
       <p className="mt-2 text-sm text-muted">
         New here?{' '}
-        <Link href={`/signup${next ? `?next=${encodeURIComponent(next)}` : ''}`} className="text-gold-700 hover:underline">
+        <Link href={`/signup${next ? `?next=${encodeURIComponent(next)}` : ''}`} className="-my-2 inline-block py-2 text-gold-700 hover:underline">
           Create an account
         </Link>
       </p>

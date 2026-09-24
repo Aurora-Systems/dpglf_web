@@ -47,7 +47,15 @@ export default async function AdminSubmissionPage({ params }: { params: Promise<
             {submission.competition_name} · {submission.reference ?? 'no reference yet'}
           </>
         }
-        action={<StatusBadge status={submission.status} />}
+        action={
+          <div className="flex items-center gap-3">
+            <StatusBadge status={submission.status} />
+            {/* The actions column sits at the very bottom on phones. */}
+            <a href="#actions" className="py-2 text-sm text-gold-700 underline lg:hidden">
+              Move this entry ↓
+            </a>
+          </div>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
@@ -69,9 +77,14 @@ export default async function AdminSubmissionPage({ params }: { params: Promise<
                 [
                   'Guardian consent',
                   submission.consent_status ? (
-                    <Badge key="c" tone={submission.consent_status === 'granted' ? 'good' : 'bad'}>
-                      {submission.consent_status} · {submission.consent_guardian_email}
-                    </Badge>
+                    <span key="c" className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <Badge tone={submission.consent_status === 'granted' ? 'good' : 'bad'}>
+                        {submission.consent_status}
+                      </Badge>
+                      {submission.consent_guardian_email && (
+                        <span className="text-[13px] text-forest-800">{submission.consent_guardian_email}</span>
+                      )}
+                    </span>
                   ) : (
                     'Not required'
                   ),
@@ -226,7 +239,7 @@ export default async function AdminSubmissionPage({ params }: { params: Promise<
           </Panel>
         </div>
 
-        <aside className="space-y-5">
+        <aside id="actions" className="scroll-mt-20 space-y-5">
           <Card className="p-5">
             <h2 className="font-display text-base font-semibold text-forest-900">Move this entry</h2>
             <div className="mt-4">

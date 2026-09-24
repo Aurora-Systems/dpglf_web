@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DashboardNav } from '@/components/client';
 import { Logo } from '@/components/site/Logo';
 import { cx } from '@/components/ui';
 import type { SessionUser } from '@/lib/auth';
@@ -47,16 +48,18 @@ export function DashboardShell({
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-5 sm:px-8">
           <Logo tone="dark" size="sm" href="/dashboard" />
           <div className="ml-auto flex items-center gap-3">
-            <Link href="/" className="hidden text-[13px] text-bone/60 hover:text-bone sm:block">
-              Foundation site
+            <Link href="/" className="-mx-2 px-2 py-2 text-[13px] text-bone/60 hover:text-bone sm:mx-0 sm:px-0 sm:py-0">
+              <span className="sm:hidden">Site</span>
+              <span className="hidden sm:inline">Foundation site</span>
             </Link>
             <div className="flex items-center gap-2.5 border-l border-white/10 pl-3">
-              <span
-                aria-hidden
+              <Link
+                href="/dashboard/profile"
+                aria-label="My profile"
                 className="grid size-8 place-items-center rounded-full bg-gold-500 text-xs font-semibold text-forest-950"
               >
                 {initials(user.name || user.email)}
-              </span>
+              </Link>
               <div className="hidden sm:block">
                 <p className="text-[13px] leading-tight font-medium text-bone">{user.name || user.email}</p>
                 {roleLabels && <p className="text-[11px] text-gold-400">{roleLabels}</p>}
@@ -76,26 +79,7 @@ export function DashboardShell({
 
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-5 py-8 sm:px-8 lg:flex-row lg:gap-12">
         <nav aria-label="Dashboard" className="lg:w-56 lg:shrink-0">
-          <ul className="flex gap-1 overflow-x-auto pb-1 lg:sticky lg:top-24 lg:flex-col lg:overflow-visible">
-            {visible.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cx(
-                    'flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm whitespace-nowrap',
-                    'text-forest-700 transition-colors hover:bg-forest-900/6 hover:text-forest-900',
-                  )}
-                >
-                  {item.label}
-                  {item.badge ? (
-                    <span className="rounded-full bg-gold-500 px-1.5 py-0.5 text-[11px] font-semibold text-forest-950">
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <DashboardNav items={visible.map(({ href, label, badge }) => ({ href, label, badge }))} />
         </nav>
 
         <main id="main" className="min-w-0 flex-1">
@@ -120,7 +104,7 @@ export function PageHeader({
   return (
     <div className="mb-8">
       {back && (
-        <Link href={back.href} className="text-sm text-gold-700 hover:underline">
+        <Link href={back.href} className="-my-2 inline-block py-2 text-sm text-gold-700 hover:underline">
           ← {back.label}
         </Link>
       )}

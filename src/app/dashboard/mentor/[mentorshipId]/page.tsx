@@ -59,7 +59,16 @@ export default async function MentorshipPage({
             {m.competition_name && ` · ${m.competition_name}`}
           </>
         }
-        action={<Badge tone={m.status === 'active' ? 'good' : 'neutral'}>{m.status}</Badge>}
+        action={
+          <div className="flex items-center gap-3">
+            <Badge tone={m.status === 'active' ? 'good' : 'neutral'}>{m.status}</Badge>
+            {submission && transitions.length > 0 && (
+              <a href="#actions" className="py-2 text-sm text-gold-700 underline lg:hidden">
+                Move this story on ↓
+              </a>
+            )}
+          </div>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_19rem]">
@@ -177,7 +186,7 @@ export default async function MentorshipPage({
           </Panel>
         </div>
 
-        <aside className="space-y-5">
+        <aside id="actions" className="scroll-mt-20 space-y-5">
           <Card className="p-5">
             <h2 className="font-display text-base font-semibold text-forest-900">Mentorship</h2>
             <DescList

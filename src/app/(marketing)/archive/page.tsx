@@ -64,6 +64,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeFilters = Object.entries(current).filter(([, v]) => v);
+  const facetFilterCount = activeFilters.filter(([k]) => k !== 'q').length;
 
   // [heading, query param, values, optional display formatter]
   const facetGroups: [string, string, string[], ((v: string) => string)?][] = [
@@ -114,7 +115,8 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
 
       <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[16rem_1fr] lg:gap-14">
         {/* ---- facets ---------------------------------------------------- */}
-        <aside className="lg:sticky lg:top-24 lg:self-start">
+        {/* Below lg the filters follow the results, so stories are the first thing a phone shows. */}
+        <aside id="filters" className="order-last scroll-mt-24 lg:sticky lg:top-24 lg:order-none lg:self-start">
           <div className="flex items-baseline justify-between">
             <h2 className="font-display text-lg font-semibold text-forest-900">Filter</h2>
             {activeFilters.length > 0 && (
@@ -179,6 +181,9 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
         {/* ---- results ------------------------------------------------------ */}
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
+            <a href="#filters" className={buttonClass('outline', 'md', 'lg:hidden')}>
+              Filter{facetFilterCount ? ` (${facetFilterCount})` : ''}
+            </a>
             <p className="text-sm text-muted">
               {total > 0
                 ? `${formatNumber(total)} ${total === 1 ? 'story' : 'stories'}`
@@ -226,7 +231,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
               </div>
 
               {pages > 1 && (
-                <nav className="mt-12 flex items-center justify-center gap-2" aria-label="Pagination">
+                <nav className="mt-12 flex flex-wrap items-center justify-center gap-2" aria-label="Pagination">
                   {Array.from({ length: pages }, (_, i) => i + 1).map((n) => {
                     const params = new URLSearchParams();
                     for (const [k, v] of Object.entries(current)) if (v) params.set(k, v);
@@ -238,7 +243,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
                         href={`/archive${qs ? `?${qs}` : ''}`}
                         aria-current={n === page ? 'page' : undefined}
                         className={cx(
-                          'min-w-9 rounded-md px-3 py-1.5 text-center text-sm',
+                          'min-w-9 rounded-md px-3 py-2 text-center text-sm sm:py-1.5',
                           n === page ? 'bg-forest-900 text-bone' : 'text-forest-700 hover:bg-forest-900/6',
                         )}
                       >

@@ -28,7 +28,7 @@ export default async function AuthorPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 lg:py-20">
-      <Link href="/authors" className="text-sm text-gold-700 hover:underline">
+      <Link href="/authors" className="-my-3 inline-block py-3 text-sm text-gold-700 hover:underline">
         ← All authors
       </Link>
 

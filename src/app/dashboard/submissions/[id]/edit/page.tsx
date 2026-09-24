@@ -70,15 +70,18 @@ export default async function EditSubmissionPage({ params }: { params: Promise<{
       {/* progress strip */}
       <ol className="mb-8 flex flex-wrap gap-2">
         {steps.map((s) => (
-          <li
-            key={s.n}
-            className={cx(
-              'flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px]',
-              s.done ? 'border-emerald-700/30 bg-emerald-50 text-emerald-900' : 'border-line text-muted',
-            )}
-          >
-            <span aria-hidden>{s.done ? '✓' : s.n}</span>
-            {s.title}
+          <li key={s.n}>
+            {/* A long page on a phone: each pill jumps to its step. */}
+            <a
+              href={`#step-${s.n}`}
+              className={cx(
+                'flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] transition-colors hover:border-forest-700/40',
+                s.done ? 'border-emerald-700/30 bg-emerald-50 text-emerald-900' : 'border-line text-muted',
+              )}
+            >
+              <span aria-hidden>{s.done ? '✓' : s.n}</span>
+              {s.title}
+            </a>
           </li>
         ))}
       </ol>
@@ -171,7 +174,7 @@ function Step({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden">
+    <Card id={`step-${number}`} className="scroll-mt-20 overflow-hidden">
       <div className="flex flex-wrap items-center gap-3 border-b border-line bg-parchment px-5 py-4">
         <span
           aria-hidden
@@ -183,7 +186,7 @@ function Step({
           {done ? '✓' : number}
         </span>
         <h2 className="font-display text-lg font-semibold text-forest-900">{title}</h2>
-        {meta && <span className="ml-auto text-[13px] text-muted">{meta}</span>}
+        {meta && <span className="ml-auto min-w-0 text-[13px] text-muted wrap-anywhere">{meta}</span>}
       </div>
       <div className="px-5 py-6">{children}</div>
     </Card>

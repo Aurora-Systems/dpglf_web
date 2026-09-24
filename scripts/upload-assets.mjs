@@ -37,6 +37,10 @@ const KEYS = {
   'founder-portrait-480.jpg': 'dpglf/brand/founder-portrait-480.jpg',
   'intro-poster.jpg': 'dpglf/media/intro-poster.jpg',
   'intro.mp4': 'dpglf/media/intro.mp4',
+  // Endorsing bodies' logos, shown in the footer (see ENDORSEMENTS in src/lib/brand.ts).
+  'endorsement-mosrac.png': 'dpglf/brand/endorsements/mosrac.png',
+  'endorsement-mopse.png': 'dpglf/brand/endorsements/mopse.png',
+  'endorsement-nacz.png': 'dpglf/brand/endorsements/nacz.png',
 };
 
 function loadEnv(path) {

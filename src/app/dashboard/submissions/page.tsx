@@ -62,14 +62,15 @@ export default async function MySubmissionsPage() {
           )}
 
           <Panel title="All entries">
-            <Table>
+            {/* Phones get one column: the story, with status and details under it. */}
+            <Table min="min-w-0 sm:min-w-[36rem]">
               <thead>
                 <tr>
                   <Th>Story</Th>
-                  <Th>Programme</Th>
-                  <Th>Reference</Th>
-                  <Th>Status</Th>
-                  <Th>Updated</Th>
+                  <Th className="max-sm:hidden">Programme</Th>
+                  <Th className="max-sm:hidden">Reference</Th>
+                  <Th className="max-sm:hidden">Status</Th>
+                  <Th className="max-sm:hidden">Updated</Th>
                 </tr>
               </thead>
               <tbody>
@@ -85,18 +86,26 @@ export default async function MySubmissionsPage() {
                       <p className="mt-0.5 max-w-md text-xs text-muted">
                         {STATUS_WRITER_COPY[s.status as SubmissionStatus]}
                       </p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted sm:hidden">
+                        <StatusBadge status={s.status} />
+                        <span>{s.competition_name}</span>
+                        {s.reference && <span className="font-mono">{s.reference}</span>}
+                        <span>{relativeTime(s.updated_at)}</span>
+                      </div>
                     </Td>
-                    <Td className="text-muted">
+                    <Td className="text-muted max-sm:hidden">
                       {s.competition_name}
                       {s.word_count ? (
                         <p className="text-xs">{formatNumber(s.word_count)} words</p>
                       ) : null}
                     </Td>
-                    <Td className="font-mono text-xs text-muted">{s.reference ?? (s.status === 'DRAFT' ? 'Pending' : 'None')}</Td>
-                    <Td>
+                    <Td className="font-mono text-xs text-muted max-sm:hidden">
+                      {s.reference ?? (s.status === 'DRAFT' ? 'Pending' : 'None')}
+                    </Td>
+                    <Td className="max-sm:hidden">
                       <StatusBadge status={s.status} />
                     </Td>
-                    <Td className="text-xs text-muted">
+                    <Td className="text-xs text-muted max-sm:hidden">
                       {relativeTime(s.updated_at)}
                       {s.submitted_at && (
                         <p className="mt-0.5">Submitted {formatDate(s.submitted_at)}</p>

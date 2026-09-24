@@ -46,28 +46,28 @@ export default async function AdminOverviewPage() {
             </Alert>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="p-5">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <Card className="p-4 sm:p-5">
               <Stat value={formatNumber(kpis.totalSubmissions)} label="Submissions received" />
               <p className="mt-2 text-xs text-muted">{kpis.submissionsThisWeek} in the last 7 days</p>
             </Card>
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <Stat value={`${coverage}%`} label="Judging complete" />
               <p className="mt-2 text-xs text-muted">
                 {kpis.judgingCoverage.completed} of {kpis.judgingCoverage.assigned} assignments
               </p>
             </Card>
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <Stat value={formatNumber(kpis.publishedStories)} label="Stories published" />
               <p className="mt-2 text-xs text-muted">{kpis.publicArchive} public in the archive</p>
             </Card>
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <Stat value={formatNumber(kpis.adaptationReady)} label="Adaptation-ready" />
               <p className="mt-2 text-xs text-muted">in the IP catalogue</p>
             </Card>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <MiniStat label="Open competitions" value={kpis.openCompetitions} href="/dashboard/admin/competitions" />
             <MiniStat label="Registered writers" value={kpis.writers} href="/dashboard/admin/users" />
             <MiniStat

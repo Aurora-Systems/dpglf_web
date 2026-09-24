@@ -35,11 +35,11 @@ export default async function AdminFilesPage({
 
       <div className="space-y-6">
         <Card className="p-4">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2 sm:gap-1.5">
             <Link
               href="/dashboard/admin/files"
               className={cx(
-                'rounded-md px-2.5 py-1 text-[13px]',
+                'rounded-md px-3 py-1.5 text-[13px] sm:px-2.5 sm:py-1',
                 !purpose ? 'bg-forest-900 text-bone' : 'text-muted hover:bg-forest-900/8',
               )}
             >
@@ -50,7 +50,7 @@ export default async function AdminFilesPage({
                 key={p}
                 href={`/dashboard/admin/files?purpose=${p}`}
                 className={cx(
-                  'rounded-md px-2.5 py-1 text-[13px]',
+                  'rounded-md px-3 py-1.5 text-[13px] sm:px-2.5 sm:py-1',
                   purpose === p ? 'bg-forest-900 text-bone' : 'text-muted hover:bg-forest-900/8',
                 )}
               >
@@ -72,7 +72,7 @@ export default async function AdminFilesPage({
                   <Th>Belongs to</Th>
                   <Th>Owner</Th>
                   <Th>Uploaded</Th>
-                  <Th />
+                  <Th className="sticky right-0 bg-white pl-3 after:absolute after:inset-y-0 after:left-full after:w-5 after:bg-white" />
                 </tr>
               </thead>
               <tbody>
@@ -80,7 +80,7 @@ export default async function AdminFilesPage({
                   <tr key={f.id}>
                     <Td>
                       <p className="max-w-56 truncate font-medium text-forest-900">{f.original_name}</p>
-                      <p className="text-xs text-muted">
+                      <p className="text-xs text-muted [overflow-wrap:anywhere]">
                         {f.mime_type} · {formatBytes(f.size_bytes)}
                       </p>
                     </Td>
@@ -93,7 +93,7 @@ export default async function AdminFilesPage({
                     <Td className="max-w-52 truncate text-xs text-muted">{f.linked_to ?? 'Unlinked'}</Td>
                     <Td className="text-xs text-muted">{f.owner_name ?? 'Unknown'}</Td>
                     <Td className="text-xs whitespace-nowrap text-muted">{formatDateTime(f.created_at)}</Td>
-                    <Td>
+                    <Td className="sticky right-0 bg-white pl-3 after:absolute after:inset-y-0 after:left-full after:w-5 after:bg-white">
                       <ButtonAnchor href={`/api/files/${f.id}`} variant="outline" size="sm">
                         Download
                       </ButtonAnchor>

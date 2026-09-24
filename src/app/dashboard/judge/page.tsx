@@ -41,7 +41,7 @@ export default async function JudgeQueuePage() {
                 {outstanding.map((a) => (
                   <li key={a.id} className="py-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="min-w-0 sm:flex-1">
                         <Link
                           href={`/dashboard/judge/${a.id}`}
                           className="font-display text-lg font-semibold text-forest-900 hover:text-gold-700"
@@ -60,7 +60,7 @@ export default async function JudgeQueuePage() {
                         </p>
                         <p className="mt-2 line-clamp-2 max-w-2xl text-sm text-muted">{a.synopsis}</p>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
+                      <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
                         <Badge tone={a.status === 'in_progress' ? 'progress' : 'neutral'}>
                           {a.status === 'in_progress' ? 'In progress' : 'Not started'}
                         </Badge>

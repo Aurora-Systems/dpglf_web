@@ -71,12 +71,12 @@ export default async function AdminContentPage() {
 
         <Panel title="News posts">
           {news.length > 0 && (
-            <Table className="mb-6">
+            <Table className="mb-6" min="min-w-0 sm:min-w-[36rem]">
               <thead>
                 <tr>
                   <Th>Title</Th>
                   <Th>Status</Th>
-                  <Th>Published</Th>
+                  <Th className="hidden sm:table-cell">Published</Th>
                 </tr>
               </thead>
               <tbody>
@@ -89,10 +89,10 @@ export default async function AdminContentPage() {
                           <img
                             src={publicUrl(n.cover_key)}
                             alt=""
-                            className="aspect-[16/9] w-20 shrink-0 rounded border border-line object-cover"
+                            className="hidden aspect-[16/9] w-20 shrink-0 rounded border border-line object-cover sm:block"
                           />
                         ) : (
-                          <span className="grid aspect-[16/9] w-20 shrink-0 place-items-center rounded border border-dashed border-line text-[10px] text-muted">
+                          <span className="hidden aspect-[16/9] w-20 shrink-0 place-items-center rounded border border-dashed border-line text-[10px] text-muted sm:grid">
                             No picture
                           </span>
                         )}
@@ -110,7 +110,7 @@ export default async function AdminContentPage() {
                     <Td>
                       <Badge tone={n.status === 'published' ? 'good' : 'neutral'}>{n.status}</Badge>
                     </Td>
-                    <Td className="text-xs text-muted">{formatDate(n.published_at ?? n.updated_at)}</Td>
+                    <Td className="hidden text-xs text-muted sm:table-cell">{formatDate(n.published_at ?? n.updated_at)}</Td>
                   </tr>
                 ))}
               </tbody>

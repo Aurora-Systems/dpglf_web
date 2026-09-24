@@ -37,11 +37,13 @@ export default async function PoliciesPage() {
       </p>
 
       {anyPending && (
-        <Alert tone="warning" title="Some policies are awaiting Foundation approval">
-          Where a policy has not yet been formally adopted, the page describes exactly what the
-          platform does today. Legal wording is supplied and approved by the Foundation before
-          launch.
-        </Alert>
+        <div className="mt-6">
+          <Alert tone="warning" title="Some policies are awaiting Foundation approval">
+            Where a policy has not yet been formally adopted, the page describes exactly what the
+            platform does today. Legal wording is supplied and approved by the Foundation before
+            launch.
+          </Alert>
+        </div>
       )}
 
       <ul className="mt-10 space-y-4">

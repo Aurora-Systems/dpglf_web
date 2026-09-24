@@ -69,7 +69,7 @@ export default async function AdminSubmissionsPage({
                 type="search"
                 defaultValue={sp.q ?? ''}
                 placeholder="Title, reference or writer"
-                className="mt-1.5 w-full rounded-lg border border-line px-3 py-2 text-sm focus:border-gold-500 focus:outline-none"
+                className="mt-1.5 w-full rounded-lg border border-line px-3 py-2 text-base focus:border-gold-500 focus:outline-none sm:text-sm"
               />
             </div>
             <div>
@@ -80,7 +80,7 @@ export default async function AdminSubmissionsPage({
                 id="competition"
                 name="competition"
                 defaultValue={sp.competition ?? ''}
-                className="mt-1.5 rounded-lg border border-line px-3 py-2 text-sm"
+                className="mt-1.5 rounded-lg border border-line px-3 py-2 text-base sm:text-sm"
               >
                 <option value="">All</option>
                 {competitions.map((c) => (
@@ -96,11 +96,11 @@ export default async function AdminSubmissionsPage({
             </button>
           </form>
 
-          <div className="mt-4 flex flex-wrap gap-1.5 border-t border-line pt-4">
+          <div className="mt-4 flex flex-wrap gap-2 sm:gap-1.5 border-t border-line pt-4">
             <Link
               href={filterHref({ status: undefined })}
               className={cx(
-                'rounded-md px-2.5 py-1 text-[13px]',
+                'rounded-md px-3 py-1.5 text-[13px] sm:px-2.5 sm:py-1',
                 !sp.status ? 'bg-forest-900 text-bone' : 'text-muted hover:bg-forest-900/8',
               )}
             >
@@ -111,7 +111,7 @@ export default async function AdminSubmissionsPage({
                 key={s}
                 href={filterHref({ status: s })}
                 className={cx(
-                  'rounded-md px-2.5 py-1 text-[13px]',
+                  'rounded-md px-3 py-1.5 text-[13px] sm:px-2.5 sm:py-1',
                   sp.status === s ? 'bg-forest-900 text-bone' : 'text-muted hover:bg-forest-900/8',
                 )}
               >

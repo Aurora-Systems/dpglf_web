@@ -31,7 +31,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="w-full max-w-md">{children}</div>
         </div>
         <div className="px-5 pb-8 text-center text-xs text-muted">
-          <Link href="/" className="hover:text-forest-800">
+          <Link href="/" className="-my-2 inline-block py-2 hover:text-forest-800">
             Back to the Foundation site
           </Link>
         </div>

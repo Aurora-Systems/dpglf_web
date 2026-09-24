@@ -67,7 +67,7 @@ export default function HowItWorksPage() {
         <ol className="space-y-16">
           {STAGES.map((stage, i) => (
             <li key={stage.key} className="grid gap-8 lg:grid-cols-[auto_1fr] lg:gap-14">
-              <div className="flex items-start gap-5 lg:w-52 lg:flex-col lg:gap-3">
+              <div className="flex items-center gap-5 lg:w-52 lg:flex-col lg:items-start lg:gap-3">
                 <span
                   aria-hidden
                   className="font-display grid size-16 shrink-0 place-items-center rounded-full border border-gold-500/50 text-xl font-semibold text-gold-700"

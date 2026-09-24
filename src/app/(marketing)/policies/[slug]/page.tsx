@@ -27,7 +27,7 @@ export default async function PolicyPage({ params }: Props) {
 
   return (
     <article className="mx-auto max-w-3xl px-5 py-16 sm:px-8 lg:py-20">
-      <Link href="/policies" className="text-sm text-gold-700 hover:underline">
+      <Link href="/policies" className="-my-3 inline-block py-3 text-sm text-gold-700 hover:underline">
         ← All policies
       </Link>
       <h1 className="font-display mt-8 text-4xl leading-tight font-semibold text-forest-900">{title}</h1>

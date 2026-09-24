@@ -70,7 +70,7 @@ export default async function EditorialPage() {
                   <Th>Programme</Th>
                   <Th>Draft</Th>
                   <Th>Status</Th>
-                  <Th />
+                  <Th className="sticky right-0 bg-white pl-3 after:absolute after:inset-y-0 after:left-full after:w-5 after:bg-white" />
                 </tr>
               </thead>
               <tbody>
@@ -96,7 +96,7 @@ export default async function EditorialPage() {
                       <StatusBadge status={row.status} />
                       <p className="mt-1 text-xs text-muted">{relativeTime(row.updated_at)}</p>
                     </Td>
-                    <Td>
+                    <Td className="sticky right-0 bg-white pl-3 after:absolute after:inset-y-0 after:left-full after:w-5 after:bg-white">
                       <ButtonLink
                         href={row.story_id ? `/dashboard/admin/stories/${row.story_id}` : `/dashboard/submissions/${row.id}`}
                         variant="outline"

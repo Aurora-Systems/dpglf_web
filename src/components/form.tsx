@@ -3,8 +3,9 @@ import { cx } from './ui';
 
 /** Form field primitives. Server-safe: plain elements plus consistent styling. */
 
+// 16px on phones: iOS Safari zooms the page into any field smaller than that.
 const CONTROL =
-  'w-full rounded-lg border border-line bg-white px-3 py-2.5 text-[15px] text-ink placeholder:text-muted/60 ' +
+  'w-full rounded-lg border border-line bg-white px-3 py-2.5 text-base sm:text-[15px] text-ink placeholder:text-muted/60 ' +
   'focus:border-gold-500 focus:ring-2 focus:ring-gold-500/25 focus:outline-none disabled:bg-parchment disabled:text-muted';
 
 export function Field({
@@ -50,7 +51,25 @@ export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
 }
 
 export function Select({ className, ...props }: ComponentProps<'select'>) {
-  return <select {...props} className={cx(CONTROL, 'appearance-none pr-8', className)} />;
+  // appearance-none removes the native arrow, so draw one: on a touch screen a
+  // select without it looks like a filled-in text box.
+  return (
+    <div className="relative">
+      <select {...props} className={cx(CONTROL, 'appearance-none pr-9', className)} />
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted"
+      >
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.39a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06z"
+        />
+      </svg>
+    </div>
+  );
 }
 
 export function Checkbox({

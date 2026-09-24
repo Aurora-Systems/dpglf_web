@@ -36,7 +36,7 @@ export default async function AdminCompetitionPage({
       />
 
       <div className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <Card className="p-4">
             <p className="text-xs text-muted">Entries</p>
             <p className="font-display text-2xl font-semibold text-forest-900">

@@ -69,7 +69,7 @@ export default async function ProfilePage() {
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between gap-4">
               <dt className="text-muted">Email</dt>
-              <dd className="text-forest-900">{user.email}</dd>
+              <dd className="min-w-0 text-right text-forest-900 wrap-anywhere">{user.email}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted">Age group</dt>

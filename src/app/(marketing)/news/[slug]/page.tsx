@@ -29,7 +29,7 @@ export default async function NewsPostPage({ params }: Props) {
 
   return (
     <article className="mx-auto max-w-3xl px-5 py-16 sm:px-8 lg:py-20">
-      <Link href="/news" className="text-sm text-gold-700 hover:underline">
+      <Link href="/news" className="-my-3 inline-block py-3 text-sm text-gold-700 hover:underline">
         ← All news
       </Link>
       <p className="mt-8 text-sm text-muted">{formatDate(post.published_at)}</p>

@@ -134,7 +134,7 @@ export function CompetitionForm({
       </Field>
 
       <Field label="Eligibility (HTML)" htmlFor="eligibilityHtml">
-        <Textarea id="eligibilityHtml" name="eligibilityHtml" rows={5} defaultValue={c?.eligibility_html} className="font-mono text-[13px]" />
+        <Textarea id="eligibilityHtml" name="eligibilityHtml" rows={5} defaultValue={c?.eligibility_html} className="font-mono" />
       </Field>
 
       <Field
@@ -142,7 +142,7 @@ export function CompetitionForm({
         htmlFor="rulesHtml"
         hint="Changing this after entries open bumps the rules version, so earlier entrants stay bound to what they actually accepted."
       >
-        <Textarea id="rulesHtml" name="rulesHtml" rows={8} defaultValue={c?.rules_html} className="font-mono text-[13px]" />
+        <Textarea id="rulesHtml" name="rulesHtml" rows={8} defaultValue={c?.rules_html} className="font-mono" />
       </Field>
 
       <div className="grid gap-5 sm:grid-cols-2">
@@ -460,7 +460,7 @@ export function StoryForm({
           name="bodyHtml"
           rows={16}
           defaultValue={story.body_html ?? ''}
-          className="font-mono text-[13px]"
+          className="font-mono"
         />
       </Field>
 
@@ -905,7 +905,7 @@ export function InquiryForm({
 export function MessageStatusForm({ messageId, status }: { messageId: string; status: string }) {
   const [, action] = useActionState(updateMessageAction, IDLE);
   return (
-    <form action={action} className="flex gap-1">
+    <form action={action} className="flex gap-2 sm:gap-1">
       <input type="hidden" name="messageId" value={messageId} />
       {(['new', 'handled', 'spam'] as const).map((s) => (
         <button
@@ -914,7 +914,7 @@ export function MessageStatusForm({ messageId, status }: { messageId: string; st
           name="status"
           value={s}
           className={cx(
-            'rounded-md px-2.5 py-1 text-[12px] transition-colors',
+            'rounded-md px-3 py-2 text-[13px] transition-colors sm:px-2.5 sm:py-1 sm:text-[12px]',
             status === s ? 'bg-forest-900 text-bone' : 'text-muted hover:bg-forest-900/8',
           )}
         >
@@ -1055,7 +1055,7 @@ export function PageForm({
       </Field>
 
       <Field label="Body (HTML)" htmlFor="pageBody" required>
-        <Textarea id="pageBody" name="bodyHtml" rows={16} required className="font-mono text-[13px]" />
+        <Textarea id="pageBody" name="bodyHtml" rows={16} required className="font-mono" />
       </Field>
 
       <div className="grid gap-5 sm:grid-cols-2">

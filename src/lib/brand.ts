@@ -23,6 +23,19 @@ export const BRAND = {
   introPoster: publicUrl('dpglf/media/intro-poster.jpg'),
 } as const;
 
+/**
+ * Bodies that endorse the Foundation, shown in the site footer. `logo` stays
+ * null until the official file is supplied: upload it with
+ * `node scripts/upload-assets.mjs <dir>` (filenames in that script's KEYS, e.g.
+ * endorsement-nacz.png) and point `logo` at its key. Until then the footer
+ * shows the body's name in place of the logo.
+ */
+export const ENDORSEMENTS: { slug: string; name: string; logo: string | null }[] = [
+  { slug: 'mosrac', name: 'Ministry of Sport, Recreation, Arts and Culture', logo: null },
+  { slug: 'mopse', name: 'Ministry of Primary and Secondary Education', logo: null },
+  { slug: 'nacz', name: 'National Arts Council of Zimbabwe', logo: null },
+];
+
 export const SITE = {
   name: 'Dr. Phillip Gwatidzo Literary Foundation',
   shortName: 'DPGLF',

@@ -225,7 +225,7 @@ export function Alert({
   return (
     <div className={cx('rounded-lg border px-4 py-3 text-sm', styles)} role={tone === 'error' ? 'alert' : undefined}>
       {title && <p className="font-semibold">{title}</p>}
-      {children && <div className={cx(Boolean(title) && 'mt-1', 'leading-relaxed')}>{children}</div>}
+      {children && <div className={cx(Boolean(title) && 'mt-1', 'leading-relaxed break-words')}>{children}</div>}
     </div>
   );
 }
@@ -266,10 +266,19 @@ export function Stat({ value, label, tone = 'light' }: { value: ReactNode; label
   );
 }
 
-export function Table({ children, className }: { children: ReactNode; className?: string }) {
+/** `min` sets the width below which the table scrolls sideways inside its panel. */
+export function Table({
+  children,
+  className,
+  min = 'min-w-[36rem]',
+}: {
+  children: ReactNode;
+  className?: string;
+  min?: string;
+}) {
   return (
     <div className="-mx-5 overflow-x-auto px-5">
-      <table className={cx('w-full min-w-[36rem] border-collapse text-sm', className)}>{children}</table>
+      <table className={cx('w-full border-collapse text-sm', min, className)}>{children}</table>
     </div>
   );
 }
@@ -278,7 +287,7 @@ export function Th({ children, className }: { children?: ReactNode; className?: 
   return (
     <th
       className={cx(
-        'border-b border-line pb-2 text-left text-[11px] font-semibold tracking-wider text-muted uppercase',
+        'border-b border-line pr-4 pb-2 text-left text-[11px] font-semibold tracking-wider text-muted uppercase last:pr-0',
         className,
       )}
     >
@@ -288,16 +297,29 @@ export function Th({ children, className }: { children?: ReactNode; className?: 
 }
 
 export function Td({ children, className }: { children?: ReactNode; className?: string }) {
-  return <td className={cx('border-b border-line/70 py-3 align-top', className)}>{children}</td>;
+  return <td className={cx('border-b border-line/70 py-3 pr-4 align-top last:pr-0', className)}>{children}</td>;
 }
 
-export function DescList({ rows }: { rows: [string, ReactNode][] }) {
+/**
+ * Label/value rows. Long values (emails, references) wrap rather than spill
+ * out of the card. `stack` puts the label above the value on phones, for lists
+ * with long prose values such as a synopsis.
+ */
+export function DescList({ rows, stack = false }: { rows: [string, ReactNode][]; stack?: boolean }) {
   return (
     <dl className="divide-y divide-line/70">
       {rows.map(([k, v]) => (
-        <div key={k} className="grid grid-cols-[minmax(7rem,38%)_1fr] gap-3 py-2.5 text-sm">
+        <div
+          key={k}
+          className={cx(
+            'grid py-2.5 text-sm',
+            stack
+              ? 'gap-1 sm:grid-cols-[minmax(7rem,38%)_minmax(0,1fr)] sm:gap-3'
+              : 'grid-cols-[minmax(7rem,38%)_minmax(0,1fr)] gap-3',
+          )}
+        >
           <dt className="text-muted">{k}</dt>
-          <dd className="text-forest-900">{v}</dd>
+          <dd className="min-w-0 text-forest-900 wrap-anywhere">{v}</dd>
         </div>
       ))}
     </dl>

@@ -115,6 +115,14 @@ body {
 .prose-dpg hr { border: 0; border-top: 1px solid var(--color-line); margin: 2em 0; }
 .prose-dpg table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
 .prose-dpg th, .prose-dpg td { border: 1px solid var(--color-line); padding: 0.5em 0.7em; text-align: left; }
+/* Long URLs and emails wrap instead of widening the page. */
+.prose-dpg, .prose-story { overflow-wrap: break-word; }
+/* Code blocks scroll inside themselves. */
+.prose-dpg pre { max-width: 100%; overflow-x: auto; }
+/* Phones only: a wide table scrolls inside its own box; md and up are unchanged. */
+@media (width < 48rem) {
+  .prose-dpg table { display: block; max-width: 100%; overflow-x: auto; }
+}
 
 /* Story text in the archive reader — measured for long-form reading. */
 .prose-story {

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { SITE } from '@/lib/brand';
+import { ENDORSEMENTS, SITE } from '@/lib/brand';
 import { NewsletterForm } from '@/features/marketing/NewsletterForm';
 import { Logo } from './Logo';
 
@@ -11,6 +11,7 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
       { href: '/perspectives', label: 'Perspectives anthology' },
       { href: '/how-it-works', label: 'The six stages' },
       { href: '/submit', label: 'Submit a story' },
+      { href: '/login', label: 'Writer sign in' },
     ],
   },
   {
@@ -65,10 +66,13 @@ export function Footer() {
             {COLUMNS.map((col) => (
               <div key={col.heading}>
                 <p className="eyebrow text-gold-400">{col.heading}</p>
-                <ul className="mt-4 space-y-2.5 text-sm">
+                <ul className="mt-2.5 space-y-0.5 text-sm sm:mt-4 sm:space-y-2.5">
                   {col.links.map((l) => (
                     <li key={l.href + l.label}>
-                      <Link href={l.href} className="transition-colors hover:text-bone">
+                      <Link
+                        href={l.href}
+                        className="inline-block py-1.5 transition-colors hover:text-bone sm:inline sm:py-0"
+                      >
                         {l.label}
                       </Link>
                     </li>
@@ -79,7 +83,34 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col gap-3 border-t border-white/10 pt-7 text-xs sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-14 border-t border-white/10 pt-10">
+          <p className="eyebrow text-gold-400">Endorsed by</p>
+          {/* Light tiles: official crests and logos are drawn for a white ground. */}
+          <ul className="mt-5 grid gap-4 sm:grid-cols-3">
+            {ENDORSEMENTS.map((body) => (
+              <li
+                key={body.slug}
+                className="flex min-h-28 flex-col items-center justify-center gap-2.5 rounded-xl bg-bone px-5 py-4 text-center"
+              >
+                {body.logo && (
+                  // eslint-disable-next-line @next/next/no-img-element -- same-origin /media proxy
+                  <img src={body.logo} alt="" className="h-14 w-auto max-w-full object-contain" />
+                )}
+                <span
+                  className={
+                    body.logo
+                      ? 'text-[12px] leading-snug font-medium text-forest-800'
+                      : 'font-display text-[15px] leading-snug font-semibold text-forest-900'
+                  }
+                >
+                  {body.name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-10 flex flex-col gap-3 border-t border-white/10 pt-7 text-xs sm:flex-row sm:items-center sm:justify-between">
           <p>
             © {new Date().getFullYear()} {SITE.name}. All rights reserved.
           </p>

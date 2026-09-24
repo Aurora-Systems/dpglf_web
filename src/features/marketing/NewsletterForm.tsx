@@ -31,7 +31,7 @@ export function NewsletterForm({ className, tone = 'dark' }: { className?: strin
           autoComplete="email"
           placeholder="you@example.com"
           className={cx(
-            'min-w-0 flex-1 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-gold-500/40 focus:outline-none',
+            'w-0 min-w-0 flex-1 rounded-lg px-3 py-2.5 text-base sm:text-sm focus:ring-2 focus:ring-gold-500/40 focus:outline-none',
             tone === 'dark'
               ? 'border border-white/15 bg-white/8 text-bone placeholder:text-bone/40'
               : 'border border-line bg-white text-ink placeholder:text-muted/60',

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
-import { SubmitButton } from '@/components/client';
+import { FormMessage, SubmitButton } from '@/components/client';
 import { Checkbox, Field, Input, Select } from '@/components/form';
 import { Alert } from '@/components/ui';
 import { IDLE } from '@/lib/actions';
@@ -25,7 +25,7 @@ export function SignupForm() {
 
   return (
     <form action={action} className="space-y-5">
-      {state.message && !state.ok && <Alert tone="error">{state.message}</Alert>}
+      <FormMessage state={state} />
 
       <Field label="Your name" htmlFor="name" required error={state.errors?.name}>
         <Input id="name" name="name" required autoComplete="name" maxLength={120} autoFocus />

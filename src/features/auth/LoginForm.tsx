@@ -26,7 +26,7 @@ export function LoginForm({ next }: { next?: string }) {
         required
         error={state.errors?.password}
         hint={
-          <Link href="/forgot-password" className="text-gold-700 hover:underline">
+          <Link href="/forgot-password" className="-my-1.5 inline-block py-1.5 text-gold-700 hover:underline">
             Forgotten your password?
           </Link>
         }

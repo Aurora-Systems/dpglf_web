@@ -20,11 +20,20 @@ const MOBILE_NAV = [
   { href: '/contact', label: 'Contact' },
 ];
 
+// Phones have no room for the header's Sign in link, so the menu carries it.
+const SIGNED_OUT_MOBILE_NAV = [
+  ...MOBILE_NAV,
+  { href: '/login', label: 'Sign in' },
+  { href: '/signup', label: 'Create an account' },
+];
+
 export async function Header() {
   const user = await getSessionUser();
 
+  // No backdrop filter below lg: a filter makes the header the containing block
+  // for the fixed mobile menu, which then collapses to a thin strip.
   return (
-    <header className="sticky top-0 z-50 border-b border-white/8 bg-forest-950/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-white/8 bg-forest-950 lg:bg-forest-950/95 lg:backdrop-blur">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center gap-4 px-5 sm:px-8">
         <Logo tone="dark" />
 
@@ -58,7 +67,7 @@ export async function Header() {
               </Link>
             </>
           )}
-          <MobileNav links={MOBILE_NAV} />
+          <MobileNav links={user ? MOBILE_NAV : SIGNED_OUT_MOBILE_NAV} />
         </div>
       </div>
     </header>

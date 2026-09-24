@@ -138,7 +138,7 @@ export default async function DashboardPage({
               <ul className="divide-y divide-line">
                 {submissions.map((s) => (
                   <li key={s.id} className="flex flex-wrap items-center gap-3 py-3">
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-[1_1_14rem]">
                       <Link
                         href={`/dashboard/submissions/${s.id}`}
                         className="font-medium text-forest-900 hover:text-gold-700"

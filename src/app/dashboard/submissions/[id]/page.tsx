@@ -51,15 +51,31 @@ export default async function SubmissionDetailPage({
       <PageHeader
         back={{ href: '/dashboard/submissions', label: 'My submissions' }}
         title={submission.title || 'Untitled entry'}
-        lead={submission.competition_name}
+        lead={
+          <>
+            {submission.competition_name}
+            {/* On phones the reference card is far down the page; show the number here too. */}
+            {submission.reference && (
+              <span className="lg:hidden">
+                {' · '}
+                <span className="font-mono text-sm">{submission.reference}</span>
+              </span>
+            )}
+          </>
+        }
         action={<StatusBadge status={submission.status} />}
       />
 
       <div className="space-y-6">
         {submitted && (
           <Alert tone="success" title="Your entry has been submitted">
-            Keep your reference number. It identifies this entry in every conversation with the
-            Foundation. A receipt is on its way to {submission.writer_email}.
+            {submission.reference && (
+              <>
+                Your reference number is <strong className="font-mono">{submission.reference}</strong>.{' '}
+              </>
+            )}
+            Keep it: it identifies this entry in every conversation with the Foundation. A receipt
+            is on its way to {submission.writer_email}.
           </Alert>
         )}
 
@@ -109,8 +125,9 @@ export default async function SubmissionDetailPage({
 
             <Panel title="Your story">
               <DescList
+                stack
                 rows={[
-                  ['Synopsis', <span key="s" className="whitespace-pre-line">{submission.synopsis}</span>],
+                  ['Synopsis', <span key="s" className="leading-relaxed whitespace-pre-line">{submission.synopsis}</span>],
                   ['Language', submission.language],
                   ['Genre', submission.genre ?? 'Not specified'],
                   [

@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { CountedTextarea, FileField, SubmitButton } from '@/components/client';
+import { CountedTextarea, FileField, FormMessage, SubmitButton } from '@/components/client';
 import { Checkbox, Field, Input, Select } from '@/components/form';
 import { Alert, Badge } from '@/components/ui';
 import { IDLE } from '@/lib/actions';
@@ -62,7 +62,7 @@ export function MetaForm({
 
   return (
     <form action={action} className="space-y-5">
-      {state.message && <Alert tone={state.ok ? 'success' : 'error'}>{state.message}</Alert>}
+      <FormMessage state={state} />
       <input type="hidden" name="submissionId" value={submissionId} />
 
       <Field label="Story title" htmlFor="title" required error={state.errors?.title}>
@@ -115,9 +115,11 @@ export function MetaForm({
           <p className="mt-1 text-[13px] text-muted">
             Choose up to six. These help the archive stay findable years from now.
           </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {/* Full-width, taller rows on phones so the right theme gets ticked. */}
+          <div className="mt-2 grid sm:mt-3 sm:grid-cols-2 sm:gap-2">
             {competitionThemes.map((theme) => (
               <Checkbox
+                className="py-2 sm:py-0"
                 key={theme}
                 name="themes"
                 value={theme}
@@ -284,7 +286,7 @@ export function SubmitForm({
 
   return (
     <form action={action} className="space-y-5">
-      {state.message && !state.ok && <Alert tone="error">{state.message}</Alert>}
+      <FormMessage state={state} />
       <input type="hidden" name="submissionId" value={submissionId} />
 
       {blocked && (

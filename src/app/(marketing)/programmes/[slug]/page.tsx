@@ -148,7 +148,8 @@ export default async function ProgrammePage({ params }: Props) {
           )}
         </div>
 
-        <aside className="lg:sticky lg:top-24 lg:self-start">
+        {/* Deadline, age and the Start button come first on phones. */}
+        <aside className="order-first lg:sticky lg:top-24 lg:order-none lg:self-start">
           <Card className="p-6">
             <h2 className="font-display text-lg font-semibold text-forest-900">At a glance</h2>
             <DescList

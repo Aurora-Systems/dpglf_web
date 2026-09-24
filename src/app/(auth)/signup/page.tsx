@@ -14,7 +14,7 @@ export default async function SignupPage() {
       <h1 className="font-display text-3xl font-semibold text-forest-900">Create your account</h1>
       <p className="mt-2 text-sm text-muted">
         Already registered?{' '}
-        <Link href="/login" className="text-gold-700 hover:underline">
+        <Link href="/login" className="-my-2 inline-block py-2 text-gold-700 hover:underline">
           Sign in
         </Link>
       </p>

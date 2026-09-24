@@ -27,11 +27,11 @@ export default async function AdminAuditPage({
 
       <div className="space-y-6">
         <Card className="p-4">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2 sm:gap-1.5">
             <Link
               href="/dashboard/admin/audit"
               className={cx(
-                'rounded-md px-2.5 py-1 text-[13px]',
+                'rounded-md px-3 py-1.5 text-[13px] sm:px-2.5 sm:py-1',
                 !entity ? 'bg-forest-900 text-bone' : 'text-muted hover:bg-forest-900/8',
               )}
             >
@@ -42,7 +42,7 @@ export default async function AdminAuditPage({
                 key={e}
                 href={`/dashboard/admin/audit?entity=${e}`}
                 className={cx(
-                  'rounded-md px-2.5 py-1 text-[13px]',
+                  'rounded-md px-3 py-1.5 text-[13px] sm:px-2.5 sm:py-1',
                   entity === e ? 'bg-forest-900 text-bone' : 'text-muted hover:bg-forest-900/8',
                 )}
               >

@@ -89,7 +89,7 @@ export default function SupportPage() {
       </section>
 
       <section className="bg-parchment py-20 lg:py-24">
-        <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-2 lg:gap-20">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-5 sm:px-8 lg:grid-cols-2 lg:gap-20">
           <div>
             <SectionHeading eyebrow="Where support goes" title="What funding pays for" />
             <dl className="mt-8 divide-y divide-line">

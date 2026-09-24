@@ -67,7 +67,7 @@ export function ContactForm({ defaultTopic = 'general' }: { defaultTopic?: strin
       {/* Honeypot */}
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
         <SubmitButton pendingLabel="Sending…">Send message</SubmitButton>
         <p className="text-[13px] text-muted">We reply to most messages within a few working days.</p>
       </div>
