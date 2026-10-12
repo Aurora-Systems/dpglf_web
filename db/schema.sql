@@ -640,20 +640,26 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Outbound queue for the Emoworld Publishers handoff. A story approved for
 -- publication is enqueued here; a worker drains it. Kept as a queue rather than
 -- a direct call so the publication decision never depends on a remote service.
+-- One live row per story: `action` says what Emoworld is to be told, 'send'
+-- (POST the story) or 'withdraw' (DELETE it: the entry was withdrawn, the story
+-- record withdrawn, or a guardian withdrew consent). The status and action
+-- checks are (re)declared by name under "additive columns" below.
 CREATE TABLE IF NOT EXISTS emoworld_sync_queue (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  story_id   uuid NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-  status     text NOT NULL DEFAULT 'pending'
-               CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'cancelled')),
-  payload    jsonb NOT NULL DEFAULT '{}'::jsonb,
-  remote_id  text,
-  attempts   integer NOT NULL DEFAULT 0,
-  last_error text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  sent_at    timestamptz,
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  story_id     uuid NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  status       text NOT NULL DEFAULT 'pending',
+  action       text NOT NULL DEFAULT 'send',
+  payload      jsonb NOT NULL DEFAULT '{}'::jsonb,
+  remote_id    text,
+  attempts     integer NOT NULL DEFAULT 0,
+  last_error   text,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  sent_at      timestamptz,
   -- When the drain took the row; a 'sending' row older than the claim window
   -- belonged to a run that died, and is picked up again.
-  claimed_at timestamptz
+  claimed_at   timestamptz,
+  -- When Emoworld confirmed the withdrawal (status 'withdrawn').
+  withdrawn_at timestamptz
 );
 CREATE UNIQUE INDEX IF NOT EXISTS emoworld_sync_story_key
   ON emoworld_sync_queue (story_id) WHERE status <> 'cancelled';
@@ -740,3 +746,15 @@ ALTER TABLE refresh_tokens      ADD COLUMN IF NOT EXISTS rotated_at timestamptz;
 ALTER TABLE notifications       ADD COLUMN IF NOT EXISTS claimed_at timestamptz;
 ALTER TABLE emoworld_sync_queue ADD COLUMN IF NOT EXISTS claimed_at timestamptz;
 ALTER TABLE news_posts          ADD COLUMN IF NOT EXISTS cover_alt text NOT NULL DEFAULT '';
+
+-- Emoworld withdrawals. Existing rows were all sends, so they take the default.
+ALTER TABLE emoworld_sync_queue ADD COLUMN IF NOT EXISTS action text NOT NULL DEFAULT 'send';
+ALTER TABLE emoworld_sync_queue ADD COLUMN IF NOT EXISTS withdrawn_at timestamptz;
+-- Named checks, dropped and re-added so a re-run leaves the same definition.
+-- The status list keeps every earlier value and adds 'withdrawn'.
+ALTER TABLE emoworld_sync_queue DROP CONSTRAINT IF EXISTS emoworld_sync_queue_status_check;
+ALTER TABLE emoworld_sync_queue ADD CONSTRAINT emoworld_sync_queue_status_check
+  CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'cancelled', 'withdrawn'));
+ALTER TABLE emoworld_sync_queue DROP CONSTRAINT IF EXISTS emoworld_sync_queue_action_check;
+ALTER TABLE emoworld_sync_queue ADD CONSTRAINT emoworld_sync_queue_action_check
+  CHECK (action IN ('send', 'withdraw'));

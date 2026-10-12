@@ -1,142 +1,147 @@
 import Link from 'next/link';
+import { SectionTabs } from '@/components/client';
 import { PageHeader } from '@/components/dashboard/Shell';
-import { Badge, Card, EmptyState, Panel, Table, Td, Th, cx } from '@/components/ui';
+import { EmptyState, FilterChip, Panel, cx } from '@/components/ui';
 import { requireStaff } from '@/lib/permissions';
-import { formatDateTime } from '@/lib/format';
-import { auditLog, notificationLog } from '@/features/admin/queries';
-import { PruneButton, RetryEmailsButton } from '@/features/admin/Ops';
+import { auditLog } from '@/features/admin/queries';
+import { describeAction, isRoutineAction } from '@/features/admin/activity';
+import { entityHref, groupByDay } from './events';
+import { DayHeading, EventRow } from './EventRow';
+import { AUDIT_LEAD, AUDIT_TABS } from './tabs';
 
-const ENTITY_FILTERS = ['submission', 'story', 'user', 'competition', 'guardian_consent', 'file'];
+/** The record types worth filtering by, in the words the rest of the console uses. */
+const ENTITY_FILTERS: { value: string; label: string }[] = [
+  { value: 'submission', label: 'Entries' },
+  { value: 'story', label: 'Stories' },
+  { value: 'user', label: 'People' },
+  { value: 'competition', label: 'Competitions' },
+  { value: 'guardian_consent', label: 'Guardian consent' },
+  { value: 'news_post', label: 'News' },
+  { value: 'file', label: 'Files' },
+  { value: 'setting', label: 'Settings' },
+];
+
+/** Guardians act without an account; "A guardian gave guardian consent" would say it twice. */
+const GUARDIAN_VERBS: Record<string, string> = {
+  'consent.granted': 'gave consent',
+  'consent.revoked': 'withdrew consent',
+};
 
 export default async function AdminAuditPage({
   searchParams,
 }: {
-  searchParams: Promise<{ entity?: string }>;
+  searchParams: Promise<{ entity?: string; routine?: string }>;
 }) {
   await requireStaff('/dashboard/admin/audit');
-  const { entity } = await searchParams;
-  const [events, notifications] = await Promise.all([auditLog(200, entity), notificationLog(60)]);
-  const failed = notifications.filter((n) => !n.sent_at);
+  const { entity, routine } = await searchParams;
+  const hideRoutine = routine === 'hide';
+
+  // Routine events (sign-ins, downloads...) can outnumber everything else; fetch
+  // extra when they are hidden so the page still shows a useful stretch of history.
+  const fetched = await auditLog(hideRoutine ? 500 : 200, entity || undefined);
+  const events = (hideRoutine ? fetched.filter((e) => !isRoutineAction(e.action)) : fetched).slice(0, 200);
+  const days = groupByDay(events);
+
+  const href = (next: { entity?: string; routine?: string }) => {
+    const params = new URLSearchParams();
+    const e = 'entity' in next ? next.entity : entity;
+    const r = 'routine' in next ? next.routine : routine;
+    if (e) params.set('entity', e);
+    if (r) params.set('routine', r);
+    const qs = params.toString();
+    return `/dashboard/admin/audit${qs ? `?${qs}` : ''}`;
+  };
+  const filterLabel = ENTITY_FILTERS.find((f) => f.value === entity)?.label;
 
   return (
     <>
-      <PageHeader
-        title="Audit log"
-        lead="Admin actions, judging changes, publication decisions and rights changes. Append-only."
-      />
+      <PageHeader eyebrow="System" title="Activity & email" lead={AUDIT_LEAD} />
+      <SectionTabs label="Activity and email" tabs={AUDIT_TABS} />
 
-      <div className="space-y-6">
-        <Card className="p-4">
-          <div className="flex flex-wrap gap-2 sm:gap-1.5">
-            <Link
-              href="/dashboard/admin/audit"
-              className={cx(
-                'rounded-md px-3 py-1.5 text-[13px] sm:px-2.5 sm:py-1',
-                !entity ? 'bg-forest-900 text-bone' : 'text-muted hover:bg-forest-900/8',
-              )}
-            >
-              Everything
-            </Link>
-            {ENTITY_FILTERS.map((e) => (
-              <Link
-                key={e}
-                href={`/dashboard/admin/audit?entity=${e}`}
-                className={cx(
-                  'rounded-md px-3 py-1.5 text-[13px] sm:px-2.5 sm:py-1',
-                  entity === e ? 'bg-forest-900 text-bone' : 'text-muted hover:bg-forest-900/8',
-                )}
-              >
-                {e.replace('_', ' ')}
-              </Link>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <nav aria-label="Show activity for" className="flex flex-wrap gap-2">
+          <FilterChip href={href({ entity: undefined })} current={!entity} label="Everything" />
+          {ENTITY_FILTERS.map((f) => (
+            <FilterChip key={f.value} href={href({ entity: f.value })} current={entity === f.value} label={f.label} />
+          ))}
+        </nav>
+        <Link
+          href={href({ routine: hideRoutine ? undefined : 'hide' })}
+          title="Sign-ins, file downloads, draft scores and Emoworld sync runs"
+          className="-my-2 inline-flex min-h-10 items-center text-[13px] text-gold-700 hover:underline sm:min-h-0"
+        >
+          {hideRoutine ? 'Show routine events' : 'Hide routine events'}
+        </Link>
+      </div>
+
+      <Panel
+        title={filterLabel ? `${filterLabel}: recent activity` : 'Recent activity'}
+        description={
+          events.length === 0
+            ? undefined
+            : `The latest ${events.length} ${events.length === 1 ? 'event' : 'events'}${
+                hideRoutine ? ', without sign-ins, downloads, draft scores and sync runs' : ''
+              }. Times are Harare time. Nothing here can be edited or removed.`
+        }
+      >
+        {events.length === 0 ? (
+          <EmptyState title="Nothing recorded yet">
+            {entity ? 'Try Everything to see activity on other records.' : undefined}
+          </EmptyState>
+        ) : (
+          <div className="space-y-6">
+            {days.map((day) => (
+              <section key={day.key} aria-labelledby={`day-${day.key}`}>
+                <DayHeading id={`day-${day.key}`}>{day.label}</DayHeading>
+                <ol className="divide-y divide-line/60">
+                  {day.rows.map((e) => {
+                    // No actor: a guardian (who has no account) or something done to an
+                    // account from the terminal. Name the person it happened to instead.
+                    const aboutPerson = !e.actor_id && e.entity_type === 'user' && Boolean(e.entity_label);
+                    const byGuardian = !e.actor_id && e.entity_type === 'guardian_consent';
+                    const actor = aboutPerson
+                      ? e.entity_label!
+                      : byGuardian
+                        ? 'A guardian'
+                        : e.actor_name || e.actor_email || 'System';
+                    const actorHref = e.actor_id
+                      ? `/dashboard/admin/users/${e.actor_id}`
+                      : aboutPerson
+                        ? entityHref('user', e.entity_id)
+                        : null;
+                    const verb = (byGuardian && GUARDIAN_VERBS[e.action]) || describeAction(e.action);
+                    return (
+                      <EventRow
+                        key={e.id}
+                        event={e}
+                        omitLabel={actor}
+                        sentence={
+                          <>
+                            {actorHref ? (
+                              <Link
+                                href={actorHref}
+                                className={cx(
+                                  'font-medium hover:text-gold-700',
+                                  !isRoutineAction(e.action) && 'text-forest-900',
+                                )}
+                              >
+                                {actor}
+                              </Link>
+                            ) : (
+                              <span className="font-medium">{actor}</span>
+                            )}{' '}
+                            {verb}
+                          </>
+                        }
+                      />
+                    );
+                  })}
+                </ol>
+              </section>
             ))}
           </div>
-        </Card>
-
-        <Panel title={`${events.length} event${events.length === 1 ? '' : 's'}`}>
-          {events.length === 0 ? (
-            <EmptyState title="Nothing recorded yet" />
-          ) : (
-            <Table>
-              <thead>
-                <tr>
-                  <Th>When</Th>
-                  <Th>Action</Th>
-                  <Th>Who</Th>
-                  <Th>Entity</Th>
-                  <Th>Detail</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((e) => (
-                  <tr key={e.id}>
-                    <Td className="text-xs whitespace-nowrap text-muted">{formatDateTime(e.created_at)}</Td>
-                    <Td>
-                      <code className="font-mono text-[12px] text-forest-800">{e.action}</code>
-                    </Td>
-                    <Td className="text-muted">
-                      {e.actor_name ?? 'System'}
-                      {e.ip && <p className="text-[11px]">{e.ip}</p>}
-                    </Td>
-                    <Td className="text-xs text-muted">
-                      {e.entity_type}
-                      {e.entity_id && <p className="font-mono text-[10px]">{e.entity_id.slice(0, 8)}</p>}
-                    </Td>
-                    <Td className="max-w-xs text-[12px] break-words text-muted">
-                      {Object.keys(e.metadata ?? {}).length > 0 ? JSON.stringify(e.metadata) : 'None'}
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
-        </Panel>
-
-        <Panel
-          title="Email delivery"
-          description="Every message the platform intended to send, whether or not it left the building."
-          action={failed.length > 0 ? <Badge tone="bad">{failed.length} failed</Badge> : undefined}
-        >
-          {failed.length > 0 && (
-            <div className="mb-5">
-              <RetryEmailsButton />
-            </div>
-          )}
-          {notifications.length === 0 ? (
-            <p className="text-sm text-muted">No email has been sent yet.</p>
-          ) : (
-            <Table>
-              <thead>
-                <tr>
-                  <Th>When</Th>
-                  <Th>Type</Th>
-                  <Th>To</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {notifications.map((n) => (
-                  <tr key={n.id}>
-                    <Td className="text-xs whitespace-nowrap text-muted">{formatDateTime(n.created_at)}</Td>
-                    <Td>
-                      <code className="font-mono text-[12px] text-forest-800">{n.type}</code>
-                      <p className="text-xs text-muted">{n.subject}</p>
-                    </Td>
-                    <Td className="text-xs text-muted">{n.to_email}</Td>
-                    <Td>
-                      <Badge tone={n.sent_at ? 'good' : 'bad'}>{n.sent_at ? 'sent' : 'not sent'}</Badge>
-                      {n.last_error && <p className="mt-1 text-[11px] text-red-700">{n.last_error}</p>}
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
-        </Panel>
-
-        <Panel title="Housekeeping">
-          <PruneButton />
-        </Panel>
-      </div>
+        )}
+      </Panel>
     </>
   );
 }

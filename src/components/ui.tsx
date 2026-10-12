@@ -205,6 +205,47 @@ export function Badge({
   );
 }
 
+/**
+ * One option of a list filter ("New", "Handled", "All"): a link, so every view
+ * has its own URL. The current one is filled; a count shows when given.
+ */
+export function FilterChip({
+  href,
+  current,
+  label,
+  count,
+}: {
+  href: string;
+  current: boolean;
+  label: ReactNode;
+  count?: number;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={current ? 'page' : undefined}
+      className={cx(
+        'inline-flex min-h-10 items-center gap-2 rounded-lg border px-3.5 text-[13px] transition-colors sm:min-h-8 sm:px-3',
+        current
+          ? 'border-forest-900 bg-forest-900 font-medium text-bone'
+          : 'border-line bg-white text-forest-800 hover:border-forest-900/30',
+      )}
+    >
+      {label}
+      {count !== undefined && (
+        <span
+          className={cx(
+            'rounded-full px-1.5 py-0.5 text-[11px] leading-none font-semibold',
+            current ? 'bg-white/15 text-bone' : 'bg-forest-900/8 text-forest-800',
+          )}
+        >
+          {count}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 // ---- feedback ----------------------------------------------------------------------------
 
 export function Alert({

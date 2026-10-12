@@ -1,59 +1,80 @@
 import { PageHeader } from '@/components/dashboard/Shell';
-import { Badge, EmptyState, Panel } from '@/components/ui';
+import { EmptyState, FilterChip } from '@/components/ui';
 import { requireStaff } from '@/lib/permissions';
-import { formatDateTime } from '@/lib/format';
-import { adminMessages } from '@/features/admin/queries';
-import { MessageStatusForm } from '@/features/admin/Forms';
+import { adminMessageCounts, adminMessages } from '@/features/admin/queries';
+import { MessageCard } from './MessageCard';
 
-export default async function AdminMessagesPage() {
+/** The inbox views. "New" is the default: what still needs someone's attention. */
+const VIEWS = [
+  { key: 'new', label: 'New' },
+  { key: 'handled', label: 'Handled' },
+  { key: 'spam', label: 'Spam' },
+  { key: 'all', label: 'All' },
+] as const;
+
+export default async function AdminMessagesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   await requireStaff('/dashboard/admin/messages');
-  const messages = await adminMessages();
-  const unread = messages.filter((m) => m.status === 'new').length;
+  const { status: asked } = await searchParams;
+  const view = VIEWS.find((v) => v.key === asked)?.key ?? 'new';
+  const [messages, counts] = await Promise.all([
+    adminMessages(view === 'all' ? undefined : view),
+    adminMessageCounts(),
+  ]);
+
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const countFor = (key: string) => (key === 'all' ? total : (counts[key] ?? 0));
+  const inView = countFor(view);
 
   return (
     <>
       <PageHeader
+        eyebrow="Website"
         title="Messages"
-        lead="Everything sent through the contact form. Safeguarding concerns should be escalated immediately."
-        action={unread > 0 ? <Badge tone="gold">{unread} new</Badge> : undefined}
+        lead="Everything sent through the contact form. Escalate safeguarding concerns straight away."
       />
 
-      {messages.length === 0 ? (
-        <EmptyState title="No messages yet" />
-      ) : (
-        <Panel title="Inbox">
-          <ul className="divide-y divide-line">
-            {messages.map((m) => (
-              <li key={m.id} className="py-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-forest-900">
-                      {m.name}
-                      {m.organisation && <span className="text-muted"> · {m.organisation}</span>}
-                    </p>
-                    <p className="text-sm text-muted">
-                      <a href={`mailto:${m.email}`} className="underline">
-                        {m.email}
-                      </a>
-                    </p>
-                    <p className="mt-1 text-xs text-muted">{formatDateTime(m.created_at)}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={m.topic === 'rights' || m.topic === 'partnership' ? 'gold' : 'neutral'}>
-                      {m.topic}
-                    </Badge>
-                    <MessageStatusForm messageId={m.id} status={m.status} />
-                  </div>
-                </div>
+      {total > 0 && (
+        <nav aria-label="Show messages" className="mb-6 flex flex-wrap gap-2">
+          {VIEWS.map((v) => (
+            <FilterChip
+              key={v.key}
+              href={v.key === 'new' ? '/dashboard/admin/messages' : `/dashboard/admin/messages?status=${v.key}`}
+              current={view === v.key}
+              label={v.label}
+              count={countFor(v.key)}
+            />
+          ))}
+        </nav>
+      )}
 
-                {m.subject && <p className="mt-3 font-medium text-forest-800">{m.subject}</p>}
-                <p className="mt-2 rounded-lg bg-parchment px-4 py-3 text-sm leading-relaxed whitespace-pre-line text-forest-800">
-                  {m.message}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </Panel>
+      {messages.length === 0 ? (
+        total === 0 ? (
+          <EmptyState title="No messages yet">
+            Messages sent through the contact form on the site arrive here.
+          </EmptyState>
+        ) : view === 'new' ? (
+          <EmptyState title="No new messages">
+            You are all caught up. Handled messages are kept under Handled.
+          </EmptyState>
+        ) : (
+          <EmptyState title={`No ${view === 'spam' ? 'spam' : 'handled messages'}`} />
+        )
+      ) : (
+        <div className="space-y-4">
+          {inView > messages.length && (
+            <p className="text-[13px] text-muted">
+              Showing the latest {messages.length} of {inView}.
+            </p>
+          )}
+
+          {messages.map((m) => (
+            <MessageCard key={m.id} message={m} showNew={view === 'all'} />
+          ))}
+        </div>
       )}
     </>
   );

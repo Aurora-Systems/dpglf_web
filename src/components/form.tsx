@@ -42,6 +42,48 @@ export function Field({
   );
 }
 
+/**
+ * One compartment of a long form ("Dates", "Who can enter"): a heading and a
+ * line of guidance beside its fields when the form has room, stacked above them
+ * otherwise. Room is measured on the form's own width (a container query), so a
+ * form in a narrow column stacks even on a wide screen. Consecutive sections are
+ * divided by a rule; first-of-type, because React puts hidden action inputs
+ * ahead of the first section in any form that posts to a server action.
+ */
+export function FormSection({
+  title,
+  description,
+  children,
+  className,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <fieldset
+      className={cx(
+        'min-w-0 border-t border-line pt-6 first-of-type:border-t-0 first-of-type:pt-0',
+        className,
+      )}
+    >
+      <legend className="sr-only">{title}</legend>
+      <div className="@container">
+        <div className="grid gap-x-8 gap-y-4 @2xl:grid-cols-[12rem_minmax(0,1fr)]">
+          <div>
+            <p aria-hidden="true" className="font-display text-base font-semibold text-forest-900">
+              {title}
+            </p>
+            {description && <p className="mt-1 text-[13px] leading-relaxed text-muted">{description}</p>}
+          </div>
+          <div className="min-w-0 space-y-5">{children}</div>
+        </div>
+      </div>
+    </fieldset>
+  );
+}
+
 export function Input({ className, ...props }: ComponentProps<'input'>) {
   return <input {...props} className={cx(CONTROL, className)} />;
 }

@@ -19,7 +19,11 @@ import {
   toList,
 } from '@/lib/validation';
 import { bool, fail, invalid, nullable, ok, str, type ActionState } from '@/lib/actions';
-import { drainEmoworldQueue, enqueueStoryForEmoworld } from '@/features/emoworld/sync';
+import {
+  drainEmoworldQueue,
+  enqueueStoryForEmoworld,
+  withdrawStoryFromEmoworld,
+} from '@/features/emoworld/sync';
 import { isRole, type Role } from '@/lib/roles';
 
 /** Staff-only mutations. Every one of them audits. */
@@ -158,7 +162,7 @@ export async function saveCompetitionAction(_prev: ActionState, form: FormData):
 
   revalidatePath('/dashboard/admin/competitions');
   revalidatePath(`/programmes/${d.slug}`);
-  if (!id) redirect(`/dashboard/admin/competitions/${competitionId}`);
+  if (!id) redirect(`/dashboard/admin/competitions/${competitionId}?created=1`);
   return ok(rulesChanged ? `Saved. Rules updated to ${rulesVersion}.` : 'Competition saved.');
 }
 
@@ -213,6 +217,8 @@ export async function saveRubricAction(_prev: ActionState, form: FormData): Prom
   });
 
   revalidatePath('/dashboard/admin/competitions');
+  // From the rubrics tab, land back on the list with the new rubric marked.
+  if (!competitionId) redirect(`/dashboard/admin/competitions/rubrics?created=${rubricId}`);
   return ok(`Rubric saved with ${criteria.length} criteria.`);
 }
 
@@ -381,12 +387,16 @@ export async function saveStoryAction(_prev: ActionState, form: FormData): Promi
     ],
   );
 
+  // A withdrawn story record is taken back from Emoworld too. Queued, never
+  // called inline, and it never throws: the save stands whatever the queue does.
+  const emoworld = str(form, 'status') === 'withdrawn' ? await withdrawStoryFromEmoworld(storyId) : null;
+
   await audit({
     actorId: guard.user.userId,
     action: 'story.updated',
     entityType: 'story',
     entityId: storyId,
-    metadata: { status: str(form, 'status') },
+    metadata: { status: str(form, 'status'), ...(emoworld ? { emoworld } : {}) },
   });
   revalidatePath(`/dashboard/admin/stories/${storyId}`);
   return ok('Story saved.');
@@ -668,6 +678,7 @@ export async function updateRolesAction(_prev: ActionState, form: FormData): Pro
     metadata: { roles: parsed.data.roles },
   });
   revalidatePath('/dashboard/admin/users');
+  revalidatePath(`/dashboard/admin/users/${parsed.data.userId}`);
   return ok('Roles updated. The change takes effect when they next sign in or refresh.');
 }
 
@@ -711,6 +722,7 @@ export async function setUserStatusAction(_prev: ActionState, form: FormData): P
     entityId: userId,
   });
   revalidatePath('/dashboard/admin/users');
+  revalidatePath(`/dashboard/admin/users/${userId}`);
   return ok(status === 'suspended' ? 'Account suspended and signed out.' : 'Account reactivated.');
 }
 
@@ -868,7 +880,7 @@ export async function saveNewsAction(_prev: ActionState, form: FormData): Promis
     entityId: postId || slug,
     metadata: { status, picture: stored ? 'replaced' : coverFileId ? 'kept' : 'none' },
   });
-  revalidatePath('/dashboard/admin/content');
+  revalidatePath('/dashboard/admin/content/news');
   revalidatePath('/news');
   revalidatePath(`/news/${slug}`);
   revalidatePath('/');
@@ -914,7 +926,7 @@ export async function savePageAction(_prev: ActionState, form: FormData): Promis
     entityType: 'page',
     entityId: slug,
   });
-  revalidatePath('/dashboard/admin/content');
+  revalidatePath('/dashboard/admin/content/pages');
   revalidatePath(`/policies/${slug}`);
   return ok('Page saved.');
 }
@@ -934,7 +946,8 @@ export async function drainEmoworldAction(): Promise<ActionState> {
   });
   revalidatePath('/dashboard/admin/stories');
   if (result.skipped) return fail(`Handoff is switched off (${result.skipped}).`);
-  return ok(`${result.sent} sent, ${result.failed} failed of ${result.attempted} attempted.`);
+  const withdrawn = result.withdrawn > 0 ? `, ${result.withdrawn} withdrawn` : '';
+  return ok(`${result.sent} sent${withdrawn}, ${result.failed} failed of ${result.attempted} attempted.`);
 }
 
 export async function enqueueStoryAction(_prev: ActionState, form: FormData): Promise<ActionState> {
@@ -942,11 +955,13 @@ export async function enqueueStoryAction(_prev: ActionState, form: FormData): Pr
   if ('error' in guard) return guard.error;
   const storyId = str(form, 'storyId');
   const queued = await enqueueStoryForEmoworld(storyId);
-  if (!queued) {
+  if (queued === 'not_sendable') {
     return fail(
-      'Nothing was queued. The story is already waiting or sent, or its entry has been withdrawn.',
+      'Nothing was queued. The story or its entry has been withdrawn, or a guardian withdrew consent.',
     );
   }
+  if (queued === 'unchanged') return fail('Nothing was queued. The story is already waiting or sent.');
+  if (queued === 'error') return fail('The story could not be queued. Please try again.');
   await audit({
     actorId: guard.user.userId,
     action: 'emoworld.enqueued',

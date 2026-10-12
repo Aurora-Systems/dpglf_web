@@ -41,45 +41,62 @@ export interface AdminCompetition {
   rubric_id: string | null;
   is_featured: boolean;
   submission_count: number;
+  /** The attached rubric, if any. */
+  rubric_name: string | null;
+  rubric_version: number | null;
+  rubric_criteria: number;
 }
+
+// Entries exclude writers' unsent drafts. Correlated subqueries rather than a
+// GROUP BY, so the rubric join cannot multiply the count.
+const ADMIN_COMPETITION_SELECT = `
+  SELECT c.*,
+         r.name AS rubric_name,
+         r.version AS rubric_version,
+         (SELECT count(*) FROM rubric_criteria rc WHERE rc.rubric_id = c.rubric_id)::int AS rubric_criteria,
+         (SELECT count(*) FROM submissions s
+           WHERE s.competition_id = c.id AND s.status <> 'DRAFT')::int AS submission_count
+    FROM competitions c
+    LEFT JOIN rubrics r ON r.id = c.rubric_id`;
 
 export async function adminCompetitions(): Promise<AdminCompetition[]> {
   return safe(
-    () =>
-      query<AdminCompetition>(
-        `SELECT c.*, count(s.id) FILTER (WHERE s.status <> 'DRAFT')::int AS submission_count
-           FROM competitions c
-           LEFT JOIN submissions s ON s.competition_id = c.id
-          GROUP BY c.id
-          ORDER BY c.created_at DESC`,
-      ),
+    () => query<AdminCompetition>(`${ADMIN_COMPETITION_SELECT} ORDER BY c.created_at DESC`),
     [],
   );
 }
 
 export async function adminCompetition(id: string): Promise<AdminCompetition | null> {
   return safe(
-    () =>
-      queryOne<AdminCompetition>(
-        `SELECT c.*, count(s.id) FILTER (WHERE s.status <> 'DRAFT')::int AS submission_count
-           FROM competitions c
-           LEFT JOIN submissions s ON s.competition_id = c.id
-          WHERE c.id = $1
-          GROUP BY c.id`,
-        [id],
-      ),
+    () => queryOne<AdminCompetition>(`${ADMIN_COMPETITION_SELECT} WHERE c.id = $1`, [id]),
     null,
   );
 }
 
-export async function rubrics() {
+export interface RubricRow {
+  id: string;
+  name: string;
+  version: number;
+  is_locked: boolean;
+  description: string;
+  created_at: string;
+  criteria: number;
+  criterion_labels: string[];
+  /** Competitions that currently judge with this rubric. */
+  competitions: { id: string; name: string }[];
+}
+
+export async function rubrics(): Promise<RubricRow[]> {
   return safe(
     () =>
-      query<{ id: string; name: string; version: number; is_locked: boolean; criteria: number }>(
-        `SELECT r.id, r.name, r.version, r.is_locked, count(rc.id)::int AS criteria
+      query<RubricRow>(
+        `SELECT r.id, r.name, r.version, r.is_locked, r.description, r.created_at,
+                (SELECT count(*) FROM rubric_criteria rc WHERE rc.rubric_id = r.id)::int AS criteria,
+                ARRAY(SELECT rc.label FROM rubric_criteria rc
+                       WHERE rc.rubric_id = r.id ORDER BY rc.sort_order) AS criterion_labels,
+                COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name) ORDER BY c.created_at DESC)
+                            FROM competitions c WHERE c.rubric_id = r.id), '[]'::json) AS competitions
            FROM rubrics r
-           LEFT JOIN rubric_criteria rc ON rc.rubric_id = r.id
-          GROUP BY r.id
           ORDER BY r.created_at DESC`,
       ),
     [],
@@ -157,6 +174,43 @@ export async function adminSubmissions(filters: {
   );
 }
 
+/**
+ * Submitted entries per status, for the filter chips. `n` honours the same
+ * competition and search filters as adminSubmissions; `total` ignores them, so
+ * a "waiting" count stays true whatever the filters say.
+ */
+export async function adminSubmissionCounts(filters: {
+  competitionId?: string;
+  q?: string;
+}): Promise<Record<string, { n: number; total: number }>> {
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  if (filters.competitionId) {
+    params.push(filters.competitionId);
+    conds.push(`s.competition_id = $${params.length}`);
+  }
+  if (filters.q) {
+    params.push(`%${filters.q}%`);
+    conds.push(`(s.title ILIKE $${params.length} OR s.reference ILIKE $${params.length} OR u.name ILIKE $${params.length})`);
+  }
+
+  const rows = await safe(
+    () =>
+      query<{ status: string; n: number; total: number }>(
+        `SELECT s.status,
+                count(*) FILTER (WHERE ${conds.length ? conds.join(' AND ') : 'true'})::int AS n,
+                count(*)::int AS total
+           FROM submissions s
+           JOIN users u ON u.id = s.writer_id
+          WHERE s.status <> 'DRAFT'
+          GROUP BY s.status`,
+        params,
+      ),
+    [],
+  );
+  return Object.fromEntries(rows.map((r) => [r.status, { n: r.n, total: r.total }]));
+}
+
 export async function reviewsForSubmission(submissionId: string) {
   return safe(
     () =>
@@ -187,6 +241,35 @@ export async function reviewsForSubmission(submissionId: string) {
         [submissionId],
       ),
     [],
+  );
+}
+
+/**
+ * The guardian consent an entry relies on: who gave it, how and when. Shown on
+ * the staff page for the safeguarding record; the phone number and IP stay out.
+ */
+export async function consentForSubmission(submissionId: string) {
+  return safe(
+    () =>
+      queryOne<{
+        status: string;
+        guardian_name: string;
+        guardian_email: string;
+        relationship: string;
+        method: string;
+        requested_at: string;
+        granted_at: string | null;
+        revoked_at: string | null;
+        evidence_file_id: string | null;
+      }>(
+        `SELECT gc.status, gc.guardian_name, gc.guardian_email, gc.relationship, gc.method,
+                gc.requested_at, gc.granted_at, gc.revoked_at, gc.evidence_file_id
+           FROM submissions s
+           JOIN guardian_consents gc ON gc.id = s.consent_id
+          WHERE s.id = $1`,
+        [submissionId],
+      ),
+    null,
   );
 }
 
@@ -339,12 +422,23 @@ export async function publishableSubmissions() {
 
 // ---- people, inquiries, messages, content ------------------------------------------------
 
-export async function adminUsers(q?: string) {
+/**
+ * People for the staff list. `q` matches name or email; `roles` keeps only
+ * people holding at least one of those roles (the "Staff" chip passes both
+ * administrator roles).
+ */
+export async function adminUsers(q?: string, roles?: string[]) {
   const params: unknown[] = [];
-  let where = '';
+  const where: string[] = [];
   if (q) {
     params.push(`%${q}%`);
-    where = `WHERE u.name ILIKE $1 OR u.email ILIKE $1`;
+    where.push(`(u.name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
+  }
+  if (roles && roles.length > 0) {
+    params.push(roles);
+    where.push(
+      `EXISTS (SELECT 1 FROM user_roles fr WHERE fr.user_id = u.id AND fr.role = ANY($${params.length}::text[]))`,
+    );
   }
   return safe(
     () =>
@@ -365,7 +459,7 @@ export async function adminUsers(q?: string) {
            FROM users u
            LEFT JOIN user_roles ur ON ur.user_id = u.id
            LEFT JOIN submissions s ON s.writer_id = u.id
-           ${where}
+           ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
           GROUP BY u.id
           ORDER BY u.created_at DESC
           LIMIT 300`,
@@ -375,7 +469,120 @@ export async function adminUsers(q?: string) {
   );
 }
 
-export async function adminInquiries() {
+export interface AdminUserCounts {
+  all: number;
+  writer: number;
+  judge: number;
+  mentor: number;
+  editor: number;
+  partner: number;
+  /** Admin or super admin. */
+  staff: number;
+}
+
+/** How many people each role chip on the list would show, for the same search. */
+export async function adminUserCounts(q?: string): Promise<AdminUserCounts> {
+  const params: unknown[] = [];
+  let where = '';
+  if (q) {
+    params.push(`%${q}%`);
+    where = `WHERE u.name ILIKE $1 OR u.email ILIKE $1`;
+  }
+  const empty: AdminUserCounts = { all: 0, writer: 0, judge: 0, mentor: 0, editor: 0, partner: 0, staff: 0 };
+  return safe(async () => {
+    const row = await queryOne<AdminUserCounts>(
+      `SELECT count(*)::int AS "all",
+              count(*) FILTER (WHERE 'writer' = ANY(r.roles))::int AS writer,
+              count(*) FILTER (WHERE 'judge' = ANY(r.roles))::int AS judge,
+              count(*) FILTER (WHERE 'mentor' = ANY(r.roles))::int AS mentor,
+              count(*) FILTER (WHERE 'editor' = ANY(r.roles))::int AS editor,
+              count(*) FILTER (WHERE 'partner' = ANY(r.roles))::int AS partner,
+              count(*) FILTER (WHERE r.roles && ARRAY['admin', 'super_admin'])::int AS staff
+         FROM users u
+         LEFT JOIN LATERAL (SELECT array_agg(role) AS roles FROM user_roles WHERE user_id = u.id) r ON true
+         ${where}`,
+      params,
+    );
+    return row ?? empty;
+  }, empty);
+}
+
+/** One person for the manage page. Null for an unknown id. */
+export async function adminUser(id: string) {
+  return safe(
+    () =>
+      queryOne<{
+        id: string;
+        name: string;
+        email: string;
+        status: string;
+        email_verified_at: string | null;
+        created_at: string;
+        last_login_at: string | null;
+        roles: string[] | null;
+        submissions: number;
+        drafts: number;
+      }>(
+        `SELECT u.id, u.name, u.email, u.status, u.email_verified_at, u.created_at, u.last_login_at,
+                array_remove(array_agg(DISTINCT ur.role), NULL) AS roles,
+                (SELECT count(*)::int FROM submissions s
+                  WHERE s.writer_id = u.id AND s.status <> 'DRAFT') AS submissions,
+                (SELECT count(*)::int FROM submissions s
+                  WHERE s.writer_id = u.id AND s.status = 'DRAFT') AS drafts
+           FROM users u
+           LEFT JOIN user_roles ur ON ur.user_id = u.id
+          WHERE u.id = $1::uuid
+          GROUP BY u.id`,
+        [id],
+      ),
+    null,
+  );
+}
+
+/**
+ * A person's recent audit trail: what they did, and what staff did to their
+ * account (roles changed, suspended). `about_them` marks the second kind.
+ */
+export async function userActivity(userId: string, limit = 30) {
+  return safe(
+    () =>
+      query<{
+        id: string;
+        action: string;
+        entity_type: string;
+        entity_id: string | null;
+        created_at: string;
+        metadata: Record<string, unknown>;
+        actor_id: string | null;
+        actor_name: string | null;
+        actor_email: string | null;
+        about_them: boolean;
+        /** The record's own name, as in auditLog. */
+        entity_label: string | null;
+      }>(
+        `SELECT a.id, a.action, a.entity_type, a.entity_id, a.created_at, a.metadata,
+                a.actor_id, u.name AS actor_name, u.email AS actor_email,
+                (a.actor_id IS DISTINCT FROM $1::uuid) AS about_them,
+                ${auditEntityLabelSql('a')} AS entity_label
+           FROM audit_events a
+           LEFT JOIN users u ON u.id = a.actor_id
+          WHERE a.actor_id = $1::uuid OR (a.entity_type = 'user' AND a.entity_id = $2)
+          ORDER BY a.created_at DESC
+          LIMIT $3::int`,
+        [userId, userId, limit],
+      ),
+    [],
+  );
+}
+
+/** Rights enquiries, open ones first. `statuses` keeps only those stages. */
+export async function adminInquiries(statuses?: string[]) {
+  const params: unknown[] = [];
+  let where = '';
+  if (statuses && statuses.length > 0) {
+    params.push(statuses);
+    where = `WHERE i.status = ANY($1::text[])`;
+  }
   return safe(
     () =>
       query<{
@@ -388,25 +595,48 @@ export async function adminInquiries() {
         status: string;
         created_at: string;
         response_note: string;
+        handled_at: string | null;
+        handled_by_name: string | null;
+        story_id: string | null;
         story_title: string | null;
         story_slug: string | null;
         organisation_name: string | null;
       }>(
         `SELECT i.id, i.requester_name, i.requester_email, i.requester_role, i.format, i.message,
-                i.status, i.created_at, i.response_note,
-                s.title AS story_title, s.slug AS story_slug, o.name AS organisation_name
+                i.status, i.created_at, i.response_note, i.handled_at, h.name AS handled_by_name,
+                i.story_id, s.title AS story_title, s.slug AS story_slug, o.name AS organisation_name
            FROM adaptation_inquiries i
            LEFT JOIN stories s ON s.id = i.story_id
            LEFT JOIN organisations o ON o.id = i.organisation_id
+           LEFT JOIN users h ON h.id = i.handled_by
+           ${where}
           ORDER BY CASE i.status WHEN 'new' THEN 0 WHEN 'in_review' THEN 1 ELSE 2 END,
                    i.created_at DESC
           LIMIT 200`,
+        params,
       ),
     [],
   );
 }
 
-export async function adminMessages() {
+/** Rights enquiries per status, for the view links. */
+export async function adminInquiryCounts(): Promise<Record<string, number>> {
+  return safe(async () => {
+    const rows = await query<{ status: string; n: number }>(
+      `SELECT status, count(*)::int AS n FROM adaptation_inquiries GROUP BY status`,
+    );
+    return Object.fromEntries(rows.map((r) => [r.status, r.n]));
+  }, {});
+}
+
+/** Contact form messages, optionally only those with one status (new, handled, spam). */
+export async function adminMessages(status?: string) {
+  const params: unknown[] = [];
+  let where = '';
+  if (status) {
+    params.push(status);
+    where = 'WHERE status = $1';
+  }
   return safe(
     () =>
       query<{
@@ -422,11 +652,22 @@ export async function adminMessages() {
       }>(
         `SELECT id, name, email, organisation, topic, subject, message, status, created_at
            FROM contact_messages
+           ${where}
           ORDER BY CASE status WHEN 'new' THEN 0 ELSE 1 END, created_at DESC
           LIMIT 200`,
+        params,
       ),
     [],
   );
+}
+
+/** How many messages carry each status, for the inbox filter. */
+export async function adminMessageCounts(): Promise<Record<string, number>> {
+  const rows = await safe(
+    () => query<{ status: string; n: number }>(`SELECT status, count(*)::int AS n FROM contact_messages GROUP BY status`),
+    [],
+  );
+  return Object.fromEntries(rows.map((r) => [r.status, Number(r.n)]));
 }
 
 export async function adminNews() {
@@ -491,8 +732,40 @@ export async function adminPages() {
         status: string;
         version: number;
         updated_at: string;
-      }>(`SELECT id, slug, title, kind, status, version, updated_at FROM pages ORDER BY kind, title`),
+        /** False for a row that exists but has no wording yet. */
+        has_body: boolean;
+      }>(
+        `SELECT id, slug, title, kind, status, version, updated_at, (btrim(body_html) <> '') AS has_body
+           FROM pages ORDER BY kind, title`,
+      ),
     [],
+  );
+}
+
+/** One policy or static page with everything its editor needs, drafts included. */
+export async function adminPage(slug: string) {
+  return safe(
+    () =>
+      queryOne<{
+        id: string;
+        slug: string;
+        title: string;
+        summary: string;
+        body_html: string;
+        kind: string;
+        status: string;
+        version: number;
+        updated_at: string;
+        updated_by_name: string | null;
+      }>(
+        `SELECT p.id, p.slug, p.title, p.summary, p.body_html, p.kind, p.status, p.version, p.updated_at,
+                u.name AS updated_by_name
+           FROM pages p
+           LEFT JOIN users u ON u.id = p.updated_by
+          WHERE p.slug = $1`,
+        [slug],
+      ),
+    null,
   );
 }
 
@@ -540,6 +813,15 @@ export async function adminFiles(purpose?: string): Promise<AdminFileRow[]> {
   );
 }
 
+/** How many files there are of each purpose, for the library filter. */
+export async function adminFileCounts(): Promise<Record<string, number>> {
+  const rows = await safe(
+    () => query<{ purpose: string; n: number }>(`SELECT purpose, count(*)::int AS n FROM files GROUP BY purpose`),
+    [],
+  );
+  return Object.fromEntries(rows.map((r) => [r.purpose, Number(r.n)]));
+}
+
 export async function allSettings() {
   return safe(
     () =>
@@ -570,20 +852,43 @@ export async function auditLog(limit = 200, entityType?: string) {
         metadata: Record<string, unknown>;
         ip: string | null;
         created_at: string;
+        actor_id: string | null;
         actor_name: string | null;
         actor_email: string | null;
+        /** The record's own name (entry title, person, story...) where one is easy to find. */
+        entity_label: string | null;
       }>(
         `SELECT a.id, a.action, a.entity_type, a.entity_id, a.metadata, a.ip, a.created_at,
-                u.name AS actor_name, u.email AS actor_email
+                a.actor_id, u.name AS actor_name, u.email AS actor_email,
+                ${auditEntityLabelSql('a')} AS entity_label
            FROM audit_events a
            LEFT JOIN users u ON u.id = a.actor_id
            ${where}
           ORDER BY a.created_at DESC
-          LIMIT $${params.length}`,
+          LIMIT $${params.length}::int`,
         params,
       ),
     [],
   );
+}
+
+/**
+ * SQL for an audit event's record name (entry title, person, story...), given
+ * the audit_events alias. Null when the record is gone or has no page.
+ * Labels compare on id::text: entity_id is free text, and a cast the other way
+ * would fail the whole log on one row that is not a uuid.
+ */
+function auditEntityLabelSql(a: string): string {
+  return `CASE ${a}.entity_type
+            WHEN 'submission' THEN (SELECT COALESCE(NULLIF(s.title, ''), s.reference)
+                                      FROM submissions s WHERE s.id::text = ${a}.entity_id)
+            WHEN 'story' THEN (SELECT st.title FROM stories st WHERE st.id::text = ${a}.entity_id)
+            WHEN 'user' THEN (SELECT COALESCE(NULLIF(eu.name, ''), eu.email)
+                                FROM users eu WHERE eu.id::text = ${a}.entity_id)
+            WHEN 'competition' THEN (SELECT c.name FROM competitions c WHERE c.id::text = ${a}.entity_id)
+            WHEN 'news_post' THEN (SELECT n.title FROM news_posts n WHERE n.id::text = ${a}.entity_id)
+            WHEN 'setting' THEN ${a}.entity_id
+          END`;
 }
 
 export async function notificationLog(limit = 100) {
@@ -598,11 +903,39 @@ export async function notificationLog(limit = 100) {
         sent_at: string | null;
         attempts: number;
         last_error: string | null;
+        /** Whether the message body was stored, which the retry needs. */
+        retryable: boolean;
       }>(
-        `SELECT id, type, to_email, subject, created_at, sent_at, attempts, last_error
+        `SELECT id, type, to_email, subject, created_at, sent_at, attempts, last_error,
+                (channel = 'email' AND payload ? 'html') AS retryable
            FROM notifications ORDER BY created_at DESC LIMIT $1`,
         [limit],
       ),
     [],
   );
+}
+
+export interface NotificationSummary {
+  sent: number;
+  unsent: number;
+  week_sent: number;
+  week_unsent: number;
+  /** Unsent messages the retry can act on (their body was stored). */
+  retryable: number;
+}
+
+/** Delivery totals for the email page: all time, and the last seven days. */
+export async function notificationSummary(): Promise<NotificationSummary> {
+  const empty: NotificationSummary = { sent: 0, unsent: 0, week_sent: 0, week_unsent: 0, retryable: 0 };
+  return safe(async () => {
+    const row = await queryOne<NotificationSummary>(
+      `SELECT count(*) FILTER (WHERE sent_at IS NOT NULL)::int AS sent,
+              count(*) FILTER (WHERE sent_at IS NULL)::int AS unsent,
+              count(*) FILTER (WHERE sent_at IS NULL AND channel = 'email' AND payload ? 'html')::int AS retryable,
+              count(*) FILTER (WHERE sent_at IS NOT NULL AND created_at >= now() - interval '7 days')::int AS week_sent,
+              count(*) FILTER (WHERE sent_at IS NULL AND created_at >= now() - interval '7 days')::int AS week_unsent
+         FROM notifications`,
+    );
+    return row ?? empty;
+  }, empty);
 }

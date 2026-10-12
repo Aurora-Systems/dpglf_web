@@ -1,10 +1,11 @@
 import Link from 'next/link';
+import { AdminHome, HomeSection } from '@/components/dashboard/AdminHome';
 import { PageHeader } from '@/components/dashboard/Shell';
 import { Alert, Badge, ButtonLink, Card, Panel, Stat } from '@/components/ui';
 import { requireUser } from '@/lib/permissions';
 import { hasRole, isStaff } from '@/lib/permissions';
 import { formatNumber, relativeTime } from '@/lib/format';
-import { ROLE_DESCRIPTIONS } from '@/lib/roles';
+import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/roles';
 import { dashboardCounts } from '@/features/dashboard/queries';
 import { mySubmissions } from '@/features/submissions/queries';
 import { ResendVerification } from '@/features/auth/ResetForms';
@@ -17,21 +18,16 @@ export default async function DashboardPage({
 }) {
   const user = await requireUser();
   const flags = await searchParams;
+  const staff = isStaff(user);
   const [counts, submissions] = await Promise.all([
     dashboardCounts(user),
-    hasRole(user, 'writer') ? mySubmissions(user.userId, 5) : Promise.resolve([]),
+    !staff && hasRole(user, 'writer') ? mySubmissions(user.userId, 5) : Promise.resolve([]),
   ]);
 
-  const firstName = (user.name || '').split(' ')[0];
-
-  return (
-    <>
-      <PageHeader
-        title={firstName ? `Welcome, ${firstName}` : 'Your dashboard'}
-        lead="Everything you are involved in across the Foundation, in one place."
-      />
-
-      <div className="space-y-6">
+  const showUnverified = counts.unverifiedEmail && !flags.welcome;
+  const notices =
+    flags.welcome || flags.reset || flags.denied || showUnverified ? (
+      <div className="mb-8 space-y-3">
         {flags.welcome && (
           <Alert tone="success" title="Your account is ready">
             We have sent a confirmation link to {user.email}. Confirm it when you can. It is
@@ -44,7 +40,7 @@ export default async function DashboardPage({
             If you believe you should, ask a programme administrator to grant you the role.
           </Alert>
         )}
-        {counts.unverifiedEmail && !flags.welcome && (
+        {showUnverified && (
           <Alert tone="warning" title="Confirm your email address">
             <p>
               Submissions cannot be finalised until {user.email} is confirmed. Check your inbox, or
@@ -55,67 +51,69 @@ export default async function DashboardPage({
             </div>
           </Alert>
         )}
+      </div>
+    ) : null;
 
+  // Staff get the admin home: what is waiting, the numbers, and quick actions.
+  if (staff) return <AdminHome user={user} counts={counts} notices={notices} />;
+
+  const firstName = (user.name || '').split(' ')[0];
+  const isWriter = hasRole(user, 'writer');
+  const queues = [
+    isWriter && (
+      <QueueCard
+        key="submissions"
+        href="/dashboard/submissions"
+        label="My submissions"
+        value={counts.activeSubmissions}
+        hint={counts.drafts > 0 ? `${counts.drafts} unfinished draft${counts.drafts === 1 ? '' : 's'}` : 'in progress'}
+        urgent={counts.drafts > 0}
+      />
+    ),
+    hasRole(user, 'judge') && (
+      <QueueCard
+        key="judge"
+        href="/dashboard/judge"
+        label="To review"
+        value={counts.judgeOutstanding}
+        hint="assigned to you"
+        urgent={counts.judgeOutstanding > 0}
+      />
+    ),
+    hasRole(user, 'mentor') && (
+      <QueueCard key="mentor" href="/dashboard/mentor" label="Active mentees" value={counts.mentorActive} hint="in mentorship" />
+    ),
+    hasRole(user, 'editor') && (
+      <QueueCard
+        key="editorial"
+        href="/dashboard/editorial"
+        label="Editorial queue"
+        value={counts.editorialQueue}
+        hint="stories being prepared"
+      />
+    ),
+  ].filter(Boolean);
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Overview"
+        title={firstName ? `Welcome, ${firstName}` : 'Your dashboard'}
+        lead="Everything you are involved in across the Foundation, in one place."
+      />
+
+      {notices}
+
+      <div className="space-y-10">
         {/* ---- role queues ------------------------------------------------ */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {hasRole(user, 'writer') && (
-            <QueueCard
-              href="/dashboard/submissions"
-              label="My submissions"
-              value={counts.activeSubmissions}
-              hint={counts.drafts > 0 ? `${counts.drafts} unfinished draft${counts.drafts === 1 ? '' : 's'}` : 'in progress'}
-              urgent={counts.drafts > 0}
-            />
-          )}
-          {hasRole(user, 'judge') && (
-            <QueueCard
-              href="/dashboard/judge"
-              label="To review"
-              value={counts.judgeOutstanding}
-              hint="assigned to you"
-              urgent={counts.judgeOutstanding > 0}
-            />
-          )}
-          {hasRole(user, 'mentor') && (
-            <QueueCard href="/dashboard/mentor" label="Active mentees" value={counts.mentorActive} hint="in mentorship" />
-          )}
-          {(isStaff(user) || hasRole(user, 'editor')) && (
-            <QueueCard
-              href="/dashboard/editorial"
-              label="Editorial queue"
-              value={counts.editorialQueue}
-              hint="stories being prepared"
-            />
-          )}
-          {isStaff(user) && (
-            <>
-              <QueueCard
-                href="/dashboard/admin/submissions?status=SUBMITTED"
-                label="Eligibility queue"
-                value={counts.eligibilityQueue}
-                hint="awaiting a check"
-                urgent={counts.eligibilityQueue > 0}
-              />
-              <QueueCard
-                href="/dashboard/admin/inquiries"
-                label="Rights enquiries"
-                value={counts.newInquiries}
-                hint="unanswered"
-                urgent={counts.newInquiries > 0}
-              />
-              <QueueCard
-                href="/dashboard/admin/messages"
-                label="Messages"
-                value={counts.newMessages}
-                hint="from the contact form"
-                urgent={counts.newMessages > 0}
-              />
-            </>
-          )}
-        </div>
+        {queues.length > 0 && (
+          <HomeSection title="Your work" description="What is waiting for you in each of your roles.">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{queues}</div>
+          </HomeSection>
+        )}
 
         {/* ---- writer submissions ----------------------------------------- */}
-        {hasRole(user, 'writer') && (
+        {isWriter && (
           <Panel
             title="Your recent submissions"
             action={
@@ -163,7 +161,7 @@ export default async function DashboardPage({
           <ul className="space-y-3">
             {user.roles.map((role) => (
               <li key={role} className="flex flex-wrap items-baseline gap-3">
-                <Badge tone="gold">{role.replace('_', ' ')}</Badge>
+                <Badge tone="gold">{ROLE_LABELS[role]}</Badge>
                 <span className="flex-1 text-sm text-muted">{ROLE_DESCRIPTIONS[role]}</span>
               </li>
             ))}

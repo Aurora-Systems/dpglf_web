@@ -1,5 +1,6 @@
 import type { TxQuery } from '@/lib/db';
 import type { SubmissionStatus } from '@/lib/workflow';
+import { withdrawSubmissionFromEmoworld } from '@/features/emoworld/sync';
 
 /**
  * Write one status change inside the caller's transaction.
@@ -42,8 +43,8 @@ export async function applyTransition(
 
   // A withdrawn entry leaves every queue it was in: judges stop seeing it (and
   // lose the manuscript with it), any mentorship ends, its story record is
-  // withdrawn, and a pending Emoworld handoff is cancelled (the drain also
-  // re-checks, for a row that was mid-send at this moment).
+  // withdrawn, and Emoworld is told to take the story back (or a handoff that
+  // never went out is cancelled). The drain also re-checks before every send.
   if (t.to === 'WITHDRAWN') {
     await q(
       `UPDATE review_assignments SET status = 'revoked'
@@ -63,13 +64,8 @@ export async function applyTransition(
         WHERE submission_id = $1 AND status <> 'withdrawn'`,
       [t.submissionId],
     );
-    await q(
-      `UPDATE emoworld_sync_queue SET status = 'cancelled', claimed_at = NULL,
-              last_error = 'entry withdrawn'
-        WHERE status IN ('pending', 'failed')
-          AND story_id IN (SELECT id FROM stories WHERE submission_id = $1)`,
-      [t.submissionId],
-    );
+    // Under a savepoint: a failure here is logged and cannot undo the withdrawal.
+    await withdrawSubmissionFromEmoworld(q, t.submissionId);
   }
 
   // Restoring the entry (the only way out of WITHDRAWN) brings its story back to

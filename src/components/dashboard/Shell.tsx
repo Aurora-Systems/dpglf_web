@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { DashboardNav } from '@/components/client';
+import { DashboardNav, type NavIconName } from '@/components/client';
 import { Logo } from '@/components/site/Logo';
 import { cx } from '@/components/ui';
 import type { SessionUser } from '@/lib/auth';
@@ -7,14 +7,23 @@ import { initials } from '@/lib/format';
 import { hasRole, isStaff } from '@/lib/permissions';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { logoutAction } from '@/features/auth/actions';
+import type { Counts } from '@/features/dashboard/queries';
 
 export interface NavItem {
   href: string;
   label: string;
+  icon: NavIconName;
   /** Shown only if the user holds one of these roles; omit for everyone. */
   roles?: Role[];
   staffOnly?: boolean;
-  badge?: number;
+  /** Which dashboard counter, if any, shows as a "waiting" badge. */
+  badge?: { [K in keyof Counts]: Counts[K] extends number ? K : never }[keyof Counts];
+}
+
+export interface NavGroup {
+  /** Compartment heading; omit for the top item (Overview). */
+  label?: string;
+  items: NavItem[];
 }
 
 /**
@@ -25,17 +34,26 @@ export interface NavItem {
 export function DashboardShell({
   user,
   nav,
+  counts,
   children,
 }: {
   user: SessionUser;
-  nav: NavItem[];
+  nav: NavGroup[];
+  counts: Counts;
   children: React.ReactNode;
 }) {
-  const visible = nav.filter((item) => {
-    if (item.staffOnly) return isStaff(user);
-    if (item.roles) return hasRole(user, ...item.roles);
-    return true;
-  });
+  const groups = nav
+    .map((g) => ({
+      label: g.label,
+      items: g.items
+        .filter((item) => {
+          if (item.staffOnly) return isStaff(user);
+          if (item.roles) return hasRole(user, ...item.roles);
+          return true;
+        })
+        .map(({ href, label, icon, badge }) => ({ href, label, icon, badge: badge ? counts[badge] : undefined })),
+    }))
+    .filter((g) => g.items.length > 0);
 
   const roleLabels = user.roles
     .filter((r) => r !== 'writer' || user.roles.length === 1)
@@ -78,8 +96,8 @@ export function DashboardShell({
       </header>
 
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-5 py-8 sm:px-8 lg:flex-row lg:gap-12">
-        <nav aria-label="Dashboard" className="lg:w-56 lg:shrink-0">
-          <DashboardNav items={visible.map(({ href, label, badge }) => ({ href, label, badge }))} />
+        <nav aria-label="Dashboard" className="lg:-mt-5 lg:w-56 lg:shrink-0">
+          <DashboardNav groups={groups} />
         </nav>
 
         <main id="main" className="min-w-0 flex-1">
@@ -95,11 +113,14 @@ export function PageHeader({
   lead,
   action,
   back,
+  eyebrow,
 }: {
   title: string;
   lead?: React.ReactNode;
   action?: React.ReactNode;
   back?: { href: string; label: string };
+  /** The menu compartment this page sits in, e.g. "Programmes". */
+  eyebrow?: string;
 }) {
   return (
     <div className="mb-8">
@@ -109,7 +130,8 @@ export function PageHeader({
         </Link>
       )}
       <div className={cx('flex flex-wrap items-start justify-between gap-4', back && 'mt-3')}>
-        <div>
+        <div className="min-w-0">
+          {eyebrow && <p className="mb-1.5 text-[11px] font-semibold tracking-[0.08em] text-gold-700 uppercase">{eyebrow}</p>}
           <h1 className="font-display text-3xl font-semibold text-forest-900">{title}</h1>
           {lead && <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-muted">{lead}</p>}
         </div>

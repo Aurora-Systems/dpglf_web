@@ -8,6 +8,7 @@ import { query, queryOne, tx } from '@/lib/db';
 import type { SubmissionStatus } from '@/lib/workflow';
 import { fail, ok, str, type ActionState } from '@/lib/actions';
 import { applyTransition } from '@/features/workflow/transition';
+import { withdrawSubmissionFromEmoworld } from '@/features/emoworld/sync';
 
 /**
  * Guardian consent.
@@ -96,7 +97,14 @@ export async function decideConsentAction(_prev: ActionState, form: FormData): P
         `SELECT status FROM submissions WHERE id = $1 FOR UPDATE`,
         [submissionId],
       );
-      if (!current || current.status === 'PUBLISHED' || current.status === 'WITHDRAWN') return;
+      if (!current) return;
+      if (current.status === 'PUBLISHED' || current.status === 'WITHDRAWN') {
+        // The entry stays as it is (a published story stays on the archive), but
+        // without consent it is not offered to Emoworld: take back anything sent.
+        await withdrawSubmissionFromEmoworld(q, submissionId);
+        return;
+      }
+      // Withdrawing the entry also takes its story back from Emoworld.
       await applyTransition(q, {
         submissionId,
         from: current.status,

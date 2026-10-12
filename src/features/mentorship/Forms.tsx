@@ -229,7 +229,7 @@ export function AdvanceForm({
         />
       </Field>
 
-      <SubmitButton size="sm" pendingLabel="Updating…">
+      <SubmitButton size="sm" className="min-h-10 sm:min-h-0" pendingLabel="Updating…">
         Apply
       </SubmitButton>
     </form>

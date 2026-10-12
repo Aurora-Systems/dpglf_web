@@ -156,16 +156,27 @@ Authorization: Bearer {EMOWORLD_SYNC_SECRET}
 ```
 
 with the payload defined by `EmoworldStoryPayload` in `src/features/emoworld/sync.ts` — story text,
-metadata, author (including an `isMinor` flag so Emoworld can apply its own safeguarding rules) and
-the rights position. Emoworld should upsert on `externalId` and may return `{ "id": "..." }`, which
-is stored as `remote_id`.
+metadata, author (including an `isMinor` flag and the age band so Emoworld can apply its own
+safeguarding rules), the rights position and an absolute https cover URL (or null). Emoworld upserts
+on `externalId` and answers `201 {id, status: 'created', reviewStatus}` for a new story or `200 {id,
+status, reviewStatus}` for a repeat; `id` is stored as `remote_id`.
+
+Taking a story back (the entry or the story record is withdrawn, or a guardian withdraws consent)
+moves the same queue row to `action = 'withdraw'`, and the drain sends:
+
+```
+DELETE {EMOWORLD_API_BASE}/api/partners/dpglf/stories/{storyId}
+```
+
+A 404 there counts as done (Emoworld holds nothing to take down). For both calls, any 2xx is success;
+any other 4xx except 408, 425 and 429 is a refusal, marked failed without automatic retries (fix the
+cause, then queue the story again); 5xx, 408, 425, 429, timeouts and network errors are retried, up
+to five attempts fifteen minutes apart. Emoworld reads the shared secret from its `DPGLF_SYNC_KEY`.
 
 It is a queue, not a direct call, on purpose: the Foundation's publication decision must never fail
 or wait because a remote service is down. **Nothing is sent until `EMOWORLD_SYNC_ENABLED=true`** —
-until then stories accumulate safely and the admin console shows the backlog.
-
-The matching receiver on the Emoworld side is not built yet; this is the last stage of the
-integration.
+until then stories accumulate safely and the admin console shows the backlog. Apply the schema
+(`pnpm db:push`) before deploying code that uses the `action` and `withdrawn_at` columns.
 
 ---
 
